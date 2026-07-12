@@ -150,6 +150,20 @@
   .seq{font-size:15px;line-height:1.9;word-break:break-all;min-height:29px;color:var(--ink)}
   .seq:empty::before{content:"點一顆棋子當起點,再依馬步一路收棋。";color:#a08b6c}
 
+  .math-note{
+    width:min(560px,94vw);margin-top:12px;
+    background:var(--piece);border:2px solid var(--line);border-radius:10px;
+    padding:2px 12px;
+  }
+  .math-note summary{
+    font-family:"Noto Serif TC",serif;font-weight:900;font-size:15px;
+    padding:9px 2px;cursor:pointer;letter-spacing:.05em;
+  }
+  .math-note summary:focus-visible{outline:3px solid var(--jade);outline-offset:2px}
+  .math-body{padding:2px 2px 12px;font-size:14px;line-height:1.9}
+  .math-body p{margin-bottom:8px}
+  .math-body b{color:var(--red)}
+
   footer{margin-top:18px;font-size:12px;color:#9c8a6c;text-align:center;line-height:1.7}
 </style>
 </head>
@@ -175,7 +189,17 @@
   <div class="seq" id="seq"></div>
 </div>
 
-<footer>可走的位置以 ● 標示 · 第 5 題須由 51(起)出發,以 47(終)收尾</footer>
+<details class="math-note" id="mathNote" hidden>
+  <summary>🔍 為什麼第 5 題收不滿 33 顆?(教學說明)</summary>
+  <div class="math-body">
+    <p><b>結論:</b>這個十字盤不存在收完 33 顆的馬步路徑——不論從哪裡出發、在哪裡結束(電腦窮舉證明)。最多只能收 32 顆,所以本題目標是「漏一顆」:收滿 32 顆,從 51 出發、47 收尾。</p>
+    <p><b>黑白染色:</b>把棋盤像西洋棋一樣黑白相間染色,馬每走一步必換色。32 步的路徑黑白恰好各 16 格;但整盤兩色是 17:16,所以<b>漏掉的那顆必須屬於 17 顆的多數色</b>——這一刀就砍掉 16 顆候選。</p>
+    <p><b>關鍵通道:</b>盤上只有 14、41、74、47 四格的馬步出路恰好 2 條。出路 2 條的格子若不是路徑端點,兩條路都非走不可,於是強制出一條鏈:<b>35–14–33–41–53–74–55</b>。而 47 的僅有兩個鄰居正是鏈的兩端 35 與 55——若 47 不當端點,鏈會閉合成圈,矛盾。<b>這就是 47 被標為「終」的原因。</b>同時,鏈上的 35、55、33、53 動不得:漏掉任何一顆,就會讓某個出路 2 條的格子變成死巷。</p>
+    <p><b>可漏子只有 12 顆:</b>37、57、46、15、75、24、44、64、13、73、42、31。每一顆都經電腦驗證確實存在對應路徑。</p>
+  </div>
+</details>
+
+<footer>可走的位置以 ● 標示 · 第 5 題為漏一顆挑戰:33 顆收 32 顆</footer>
 
 <script>
 "use strict";
@@ -213,7 +237,10 @@ const PUZZLES = [
       [null,"17","18","19","20","21","22",null],
       [null,"23",null,null,null,null,"24",null]
   ]},
-  { name:"5", cols:7, rows:7, start:"51", end:"47", grid:[
+  { name:"5", cols:7, rows:7, start:"51", end:"47", goal:32,
+    omit:["37","57","46","15","75","24","44","64","13","73","42","31"],
+    chain:["35","55","33","53"],
+    grid:[
       [null,null,"37","47","57",null,null],
       [null,null,"36","46","56",null,null],
       ["15","25","35","45","55","65","75"],
@@ -278,6 +305,7 @@ function cellSize(){
 function render(){
   const p=puzzle();
   document.querySelectorAll(".tab").forEach((t,i)=>t.classList.toggle("active",i===cur));
+  document.getElementById("mathNote").hidden=!p.goal;
 
   const cs=cellSize();
   boardEl.style.setProperty("--cs",cs+"px");
@@ -343,6 +371,10 @@ function tap(r,c){
     flash("那裡不是馬步(日字)可到的位置。","warn");
     return;
   }
+  if(p.end&&label===p.end&&path.length+1<(p.goal||totalPieces())){
+    flash(`<b>${p.end}</b> 是終點,要留到最後一步!`,"warn");
+    return;
+  }
   path.push({r,c,label}); render();
 }
 
@@ -354,31 +386,63 @@ function flash(html,cls){
   flashTimer=setTimeout(updatePanel,1800);
 }
 
+function leftovers(){
+  const t=takenSet(), p=puzzle(), out=[];
+  for(let r=0;r<p.rows;r++)for(let c=0;c<p.cols;c++){
+    if(p.grid[r][c]!==null && !t.has(r+","+c)) out.push(p.grid[r][c]);
+  }
+  return out;
+}
+
 function updatePanel(){
   const p=puzzle(), total=totalPieces();
   seqEl.textContent=path.map(s=>s.label).join(" → ");
-  countEl.textContent=path.length?`已收 ${path.length} / ${total}`:`共 ${total} 顆`;
+  countEl.textContent=path.length
+    ? `已收 ${path.length} / ${total}${p.goal?`(目標 ${p.goal})`:""}`
+    : `共 ${total} 顆${p.goal?`(目標 ${p.goal})`:""}`;
   undoBtn.disabled=path.length===0;
   copyBtn.hidden=true;
 
+  const goal=p.goal||total;
+  const last=path.length?path[path.length-1].label:null;
+
   if(path.length===0){
-    statusEl.innerHTML=p.start
-      ? `第 ${p.name} 題:請從 <b>${p.start}</b> 出發`
-      : `第 ${p.name} 題:點任一顆棋子當起點`;
+    statusEl.innerHTML=p.goal
+      ? `第 ${p.name} 題(漏一顆挑戰):${total} 顆中收滿 ${goal} 顆,從 <b>${p.start}</b> 出發、<b>${p.end}</b> 收尾`
+      : (p.start
+        ? `第 ${p.name} 題:請從 <b>${p.start}</b> 出發`
+        : `第 ${p.name} 題:點任一顆棋子當起點`);
     return;
   }
-  if(path.length===total){
-    if(p.end&&path[path.length-1].label!==p.end){
-      statusEl.innerHTML=`<span class="warn">全部收完了,但終點不是 ${p.end}(終)。再試一次!</span>`;
+
+  /* 過關判定 */
+  if(path.length>=goal && (!p.end||last===p.end)){
+    if(p.goal){
+      const left=leftovers();
+      statusEl.innerHTML=`<span class="win">🎉 挑戰成功!收滿 ${goal} 顆,漏掉的 ${left[0]} 正是 12 顆「可漏子」之一!</span>`;
     }else{
       statusEl.innerHTML=`<span class="win">🎉 完成!全部 ${total} 顆一路收完!</span>`;
-      copyBtn.hidden=false;
     }
+    copyBtn.hidden=false;
     return;
   }
+
   const legal=legalMoves();
   if(legal.length===0){
-    statusEl.innerHTML=`<span class="warn">無路可走!還剩 ${total-path.length} 顆。悔一步或重來吧。</span>`;
+    if(p.goal && path.length===goal){
+      /* 收滿32顆但終點不對,或漏子不可行 */
+      const left=leftovers();
+      const x=left[0];
+      if(p.omit.includes(x)){
+        statusEl.innerHTML=`<span class="warn">只差臨門一腳!漏 ${x} 是可行的,但最後一步必須落在 ${p.end}(終)。調整順序再試!</span>`;
+      }else if(p.chain.includes(x)){
+        statusEl.innerHTML=`<span class="warn">漏 ${x} 註定失敗:它是關鍵通道,少了它就有格子變成死巷。換一顆漏吧!</span>`;
+      }else{
+        statusEl.innerHTML=`<span class="warn">漏 ${x} 註定失敗:黑白染色奇偶不合(32 步必須黑白各 16)。換一顆漏吧!</span>`;
+      }
+    }else{
+      statusEl.innerHTML=`<span class="warn">無路可走!還剩 ${total-path.length} 顆。悔一步或重來吧。</span>`;
+    }
   }else{
     statusEl.textContent=`已收 ${path.length} 顆,● 是下一步可走的位置`;
   }

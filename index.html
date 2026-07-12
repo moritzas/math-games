@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>數學小遊戲</title>
+<style>
+  :root{
+    --paper:#F3E9D7;
+    --ink:#33251A;
+    --line:#5A4632;
+    --red:#A93226;
+    --jade:#2E6E5E;
+    --card:#FBF3E2;
+    --muted:#9c8a6c;
+    --shadow:rgba(60,40,20,.22);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{
+    font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+    background:var(--paper);
+    background-image:radial-gradient(circle at 15% 8%, rgba(255,255,255,.55), transparent 50%),
+                     repeating-linear-gradient(90deg, rgba(150,110,60,.04) 0 2px, transparent 2px 26px);
+    color:var(--ink);
+    min-height:100vh;
+    display:flex;flex-direction:column;align-items:center;
+    padding:26px 14px 48px;
+  }
+  header{text-align:center;margin-bottom:22px}
+  h1{
+    font-family:"Noto Serif TC","PMingLiU",serif;
+    font-size:clamp(30px,7vw,44px);
+    letter-spacing:.3em;margin-right:-.3em;
+    font-weight:900;
+  }
+  .subtitle{font-size:14px;color:var(--muted);margin-top:6px;letter-spacing:.12em}
+
+  .grid{
+    display:grid;gap:16px;width:min(880px,100%);
+    grid-template-columns:repeat(auto-fill,minmax(250px,1fr));
+  }
+  .card{
+    background:var(--card);
+    border:2px solid var(--line);
+    border-radius:12px;
+    padding:18px 18px 16px;
+    display:flex;flex-direction:column;gap:10px;
+    box-shadow:0 3px 0 var(--shadow);
+    text-decoration:none;color:var(--ink);
+    transition:transform .1s, box-shadow .1s;
+    position:relative;
+  }
+  a.card:hover{transform:translateY(-3px);box-shadow:0 6px 0 var(--shadow)}
+  a.card:active{transform:translateY(0);box-shadow:0 2px 0 var(--shadow)}
+  a.card:focus-visible{outline:3px solid var(--jade);outline-offset:3px}
+
+  .card h2{
+    font-family:"Noto Serif TC",serif;font-weight:900;
+    font-size:22px;letter-spacing:.1em;
+    display:flex;align-items:center;gap:8px;
+  }
+  .card .desc{font-size:14px;line-height:1.8;flex:1}
+  .tags{display:flex;gap:6px;flex-wrap:wrap}
+  .tag{
+    font-size:12px;padding:2px 9px;border-radius:999px;
+    border:1.5px solid var(--jade);color:var(--jade);font-weight:700;
+  }
+  .go{
+    align-self:flex-end;font-weight:700;font-size:14px;color:var(--red);
+    letter-spacing:.08em;
+  }
+  a.card:hover .go::after{content:" →"}
+
+  .card.soon{opacity:.55;box-shadow:none;cursor:default}
+  .card.soon .go{color:var(--muted)}
+
+  .empty{
+    color:var(--muted);font-size:15px;text-align:center;
+    padding:40px 0;grid-column:1/-1;
+  }
+  footer{margin-top:34px;font-size:12px;color:var(--muted);text-align:center;line-height:1.8}
+</style>
+</head>
+<body>
+<header>
+  <h1>數學小遊戲</h1>
+  <div class="subtitle">動手玩,把數學想清楚</div>
+</header>
+
+<div class="grid" id="grid"></div>
+
+<footer>持續上架中</footer>
+
+<script>
+"use strict";
+
+/* ── 遊戲清單 ──────────────────────────────────
+   上架新遊戲:在下方陣列加一個物件即可。
+   file  :遊戲的 HTML 檔名(同資料夾)
+   tags  :2~3 個主題標籤
+   status:省略 = 已上架;"soon" = 顯示為即將上架(不可點)
+──────────────────────────────────────────────── */
+const GAMES = [
+  {
+    title:"馬步收棋",
+    icon:"♞",
+    desc:"用象棋「馬」走日字的步法,一路把棋盤上的棋子全部收完。五道關卡,最後一關藏著一個漂亮的圖論謎題。",
+    tags:["路徑","奇偶性","圖論"],
+    file:"馬步收棋.html"
+  },
+  /* 範例:之後修好的遊戲照這個格式加進來
+  {
+    title:"遊戲名稱",
+    icon:"🎲",
+    desc:"一句話介紹玩法與數學重點。",
+    tags:["主題一","主題二"],
+    file:"檔名.html",
+    status:"soon"        // 還沒好就先掛這行,好了再刪
+  },
+  */
+];
+
+const grid=document.getElementById("grid");
+if(GAMES.length===0){
+  grid.innerHTML='<div class="empty">遊戲整備中,敬請期待!</div>';
+}
+for(const g of GAMES){
+  const soon=g.status==="soon";
+  const el=document.createElement(soon?"div":"a");
+  el.className="card"+(soon?" soon":"");
+  if(!soon) el.href=g.file;
+  el.innerHTML=`
+    <h2>${g.icon||""} ${g.title}</h2>
+    <div class="desc">${g.desc}</div>
+    <div class="tags">${(g.tags||[]).map(t=>`<span class="tag">${t}</span>`).join("")}</div>
+    <div class="go">${soon?"即將上架":"開始遊戲"}</div>`;
+  grid.appendChild(el);
+}
+</script>
+</body>
+</html>
