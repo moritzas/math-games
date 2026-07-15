@@ -44,7 +44,7 @@
   .sub{margin:8px 2px 0; color:#5a5648; font-size:14px; line-height:1.5;}
 
   .hud{
-    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    display:flex; align-items:center; gap:6px; flex-wrap:wrap;
     margin:14px 0 12px;
   }
   .stat{
@@ -69,11 +69,17 @@
 
   /* Mode / level selector */
   .modebar{
-    display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+    display:flex; gap:6px; flex-wrap:nowrap; align-items:stretch;
     margin:6px 0 10px;
   }
-  .modebtn{background:var(--panel);}
-  .modebtn.star{letter-spacing:0; color:#c99a00;}
+  .modebtn{
+    flex:1 1 0; min-width:0; padding:6px 4px; text-align:center;
+    background:var(--panel); line-height:1.1;
+  }
+  .modebtn.star{
+    font-size:12px; letter-spacing:0;
+    white-space:normal; word-break:break-all; color:#c99a00;
+  }
   .modebtn.active{background:var(--ink); color:var(--paper);}
   .modebtn.star.active{color:#ffd400;}
   .levelmenu{
@@ -85,11 +91,6 @@
   .lvlbtn{min-width:42px; padding:8px 10px;}
   .lvlbtn.active{background:var(--ink); color:var(--paper);}
   .menuhint{font-size:13px; color:#5a5648; padding:2px 4px;}
-  .modelabel{
-    margin:0 2px 12px; font-size:13px; line-height:1.5;
-    color:#5a5648; min-height:1.2em;
-  }
-  .modelabel b{color:var(--ink);}
 
   /* Board */
   .board-wrap{
@@ -158,8 +159,11 @@
   .card p{margin:6px 0 18px; color:#5a5648; font-size:15px;}
   .card b{font-variant-numeric:tabular-nums;}
 
-  @media (max-width:380px){
-    .hud{gap:6px;} button{padding:7px 9px;}
+  @media (max-width:480px){
+    .hud{gap:5px;} 
+    .hud button{padding:7px 8px; font-size:12px;}
+    .stat{padding:6px 8px; font-size:12px;}
+    .sub{font-size:13px;}
   }
 </style>
 </head>
@@ -167,7 +171,7 @@
   <div class="app">
     <header>
       <h1>方塊鋪滿 <span class="n">8×8</span></h1>
-      <p class="sub">把方塊放進格子裡,剛好鋪滿、不留空隙、不重疊。<br>拖曳放置 · 雙擊或選取後按「旋轉」轉向 · 按 R 也可旋轉。</p>
+      <p class="sub">雙擊或選取後按 R 也可旋轉。</p>
     </header>
 
     <div class="modebar" id="modebar">
@@ -179,14 +183,11 @@
       <button data-stars="5" class="modebtn star">★★★★★</button>
     </div>
     <div class="levelmenu hidden" id="levelmenu"></div>
-    <div class="modelabel" id="modelabel"></div>
 
     <div class="hud">
       <div class="stat">已放 <b id="count">0</b>/11</div>
-      <div class="stat">時間 <b id="timer">0:00</b></div>
       <div class="spacer"></div>
       <button id="rotateBtn" class="accent">旋轉 ↻</button>
-      <button id="hintBtn">提示</button>
       <button id="solveBtn">顯示解答</button>
       <button id="resetBtn">重來</button>
     </div>
@@ -561,9 +562,7 @@
     return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0');
   }
   function ensureTimer(){
-    if(startTime) return;
-    startTime = Date.now();
-    tickTimer = setInterval(()=>{ timerEl.textContent = fmt(Date.now()-startTime); }, 500);
+    if(!startTime) startTime = Date.now();
   }
   function stopTimer(){ if(tickTimer){ clearInterval(tickTimer); tickTimer=null; } }
 
@@ -665,7 +664,7 @@
     window.removeEventListener('pointerup', onPointerUp);
     window.removeEventListener('pointercancel', onPointerUp);
     drag = null; ghost.style.display = 'none';
-    stopTimer(); startTime = null; timerEl.textContent = '0:00';
+    stopTimer(); startTime = null;
     winEl.classList.add('hidden');
     select(null);
     computeCells();
@@ -678,7 +677,6 @@
   document.getElementById('rotateBtn').addEventListener('click', ()=>{
     if(selectedId && pieces[selectedId]) rotate(pieces[selectedId]);
   });
-  document.getElementById('hintBtn').addEventListener('click', hint);
   document.getElementById('solveBtn').addEventListener('click', solveAll);
   document.getElementById('resetBtn').addEventListener('click', reset);
   document.getElementById('againBtn').addEventListener('click', reset);
@@ -716,30 +714,18 @@
   /* ---------- mode / level menu ---------- */
   const modebar   = document.getElementById('modebar');
   const levelmenu = document.getElementById('levelmenu');
-  const modelabel = document.getElementById('modelabel');
 
   function setActiveMode(btn){
     modebar.querySelectorAll('button').forEach(x => x.classList.toggle('active', x === btn));
-  }
-  function updateModeLabel(){
-    if(currentLevel){
-      modelabel.innerHTML = '<b>第 ' + currentLevel.id + ' 題</b> · 難度 ' +
-        '★'.repeat(currentLevel.stars) +
-        ' · 黑色三塊已固定,用其餘 8 塊補滿空白。';
-    } else {
-      modelabel.innerHTML = '<b>自由模式</b> · 11 塊全部自己擺,把 8×8 剛好鋪滿。';
-    }
   }
   function startFree(){
     currentLevel = null;
     levelmenu.classList.add('hidden');
     reset();
-    updateModeLabel();
   }
   function startLevel(raw){
     currentLevel = {id:raw.id, stars:raw.stars, given: buildGiven(raw)};
     reset();
-    updateModeLabel();
   }
   function showLevelMenu(stars){
     const items = LEVELS.filter(l => l.stars === stars);
@@ -775,7 +761,6 @@
   /* ---------- go ---------- */
   setActiveMode(modebar.querySelector('[data-mode="free"]'));
   reset();
-  updateModeLabel();
 })();
 </script>
 </body>
