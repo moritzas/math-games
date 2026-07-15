@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>方塊鋪滿 · 8×8</title>
+<style>
+  :root{
+    --ink:#141414;
+    --line:#141414;
+    --paper:#f3f0e7;
+    --panel:#ffffff;
+    --frame:#141414;
+    --grid:#d8d3c4;
+    --good:#2f9e44;
+    --bad:#e03131;
+    --cell:44px;      /* set by JS */
+    --tray:30px;      /* set by JS */
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Trebuchet MS","Helvetica Neue",Helvetica,"PingFang TC","Noto Sans TC",system-ui,sans-serif;
+    display:flex; justify-content:center;
+    padding:16px 12px 40px;
+    overscroll-behavior:none;
+  }
+  .app{width:100%; max-width:600px;}
+
+  header{margin:0 2px 12px;}
+  h1{
+    font-size:clamp(24px,7vw,40px);
+    letter-spacing:.14em; text-transform:uppercase;
+    margin:0; font-weight:800; line-height:1;
+    display:flex; align-items:baseline; gap:.35em; flex-wrap:wrap;
+  }
+  h1 .n{
+    font-size:.72em; letter-spacing:.05em;
+    background:var(--ink); color:var(--paper);
+    padding:.08em .3em;
+  }
+  .sub{margin:8px 2px 0; color:#5a5648; font-size:14px; line-height:1.5;}
+
+  .hud{
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    margin:14px 0 12px;
+  }
+  .stat{
+    font-size:13px; letter-spacing:.03em; color:#5a5648;
+    background:var(--panel); border:2px solid var(--ink);
+    padding:6px 10px;
+  }
+  .stat b{font-size:16px; color:var(--ink); font-variant-numeric:tabular-nums;}
+  .spacer{flex:1 1 auto;}
+  button{
+    font-family:inherit; font-size:13px; font-weight:700;
+    letter-spacing:.04em;
+    border:2px solid var(--ink); background:var(--panel); color:var(--ink);
+    padding:8px 12px; cursor:pointer;
+    transition:transform .05s ease, background .12s ease, color .12s ease;
+  }
+  button:hover{background:var(--ink); color:var(--paper);}
+  button:active{transform:translateY(1px);}
+  button.accent{background:#ffd400;}
+  button.accent:hover{background:var(--ink); color:#ffd400;}
+  button:focus-visible{outline:3px solid #1652ce; outline-offset:2px;}
+
+  /* Board */
+  .board-wrap{
+    display:flex; justify-content:center;
+    background:var(--frame);
+    padding:10px; width:max-content; margin:0 auto;
+    box-shadow:6px 6px 0 rgba(20,20,20,.16);
+  }
+  .board{
+    position:relative;
+    width:calc(var(--cell)*8);
+    height:calc(var(--cell)*8);
+    background:var(--panel);
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size:var(--cell) var(--cell);
+    touch-action:none;
+  }
+  .ghost{
+    position:absolute; z-index:5; pointer-events:none;
+    border:3px solid var(--good);
+    background:rgba(47,158,68,.18);
+    display:none;
+  }
+  .ghost.bad{border-color:var(--bad); background:rgba(224,49,49,.16);}
+
+  /* Pieces */
+  .tray-label{margin:22px 2px 10px; font-size:13px; color:#5a5648; letter-spacing:.02em;}
+  .tray{
+    display:flex; flex-wrap:wrap; gap:12px 12px; align-content:flex-start;
+    min-height:var(--tray);
+  }
+  .piece{
+    position:relative;
+    border:2px solid var(--ink);
+    display:flex; align-items:center; justify-content:center;
+    font-weight:800; font-size:12px; letter-spacing:.04em;
+    cursor:grab; touch-action:none; user-select:none;
+    background-clip:padding-box;
+  }
+  .piece.dragging{cursor:grabbing; z-index:9999; opacity:.92; box-shadow:4px 6px 0 rgba(0,0,0,.25);}
+  .piece.placed{cursor:grab;}
+  .piece.selected{outline:3px dashed #1652ce; outline-offset:3px;}
+  .piece .tag{
+    padding:1px 4px; border-radius:2px;
+    background:rgba(255,255,255,.0);
+  }
+
+  /* Win overlay */
+  .win{
+    position:fixed; inset:0; background:rgba(20,20,20,.72);
+    display:flex; align-items:center; justify-content:center; padding:24px;
+    z-index:10000;
+  }
+  .win.hidden{display:none;}
+  .card{
+    background:var(--paper); border:3px solid var(--ink);
+    box-shadow:10px 10px 0 rgba(0,0,0,.3);
+    padding:28px 26px; max-width:340px; text-align:center;
+  }
+  .card h2{margin:0 0 6px; font-size:26px; letter-spacing:.08em; text-transform:uppercase;}
+  .card .swatches{display:flex; gap:6px; justify-content:center; margin:14px 0;}
+  .card .swatches span{width:22px; height:22px; border:2px solid var(--ink);}
+  .card p{margin:6px 0 18px; color:#5a5648; font-size:15px;}
+  .card b{font-variant-numeric:tabular-nums;}
+
+  @media (max-width:380px){
+    .hud{gap:6px;} button{padding:7px 9px;}
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>方塊鋪滿 <span class="n">8×8</span></h1>
+      <p class="sub">把 11 個方塊全部放進格子裡,剛好鋪滿、不留空隙、不重疊。<br>拖曳放置 · 雙擊或選取後按「旋轉」轉向 · 按 R 也可旋轉。</p>
+    </header>
+
+    <div class="hud">
+      <div class="stat">已放 <b id="count">0</b>/11</div>
+      <div class="stat">時間 <b id="timer">0:00</b></div>
+      <div class="spacer"></div>
+      <button id="rotateBtn" class="accent">旋轉 ↻</button>
+      <button id="hintBtn">提示</button>
+      <button id="solveBtn">顯示解答</button>
+      <button id="resetBtn">重來</button>
+    </div>
+
+    <div class="board-wrap">
+      <div id="board" class="board"><div id="ghost" class="ghost"></div></div>
+    </div>
+
+    <div class="tray-label">方塊托盤</div>
+    <div id="tray" class="tray"></div>
+  </div>
+
+  <div id="win" class="win hidden">
+    <div class="card">
+      <h2>拼好了！</h2>
+      <div class="swatches">
+        <span style="background:#ffd400"></span>
+        <span style="background:#e11d28"></span>
+        <span style="background:#1652ce"></span>
+        <span style="background:#141414"></span>
+        <span style="background:#f5f2e9"></span>
+      </div>
+      <p>用時 <b id="winTime">0:00</b>,64 格全部鋪滿。</p>
+      <button id="againBtn" class="accent">再玩一次</button>
+    </div>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+  const N = 8;
+
+  // Piece set: w = columns, h = rows (base orientation). Colours echo the physical De Stijl set.
+  const DEFS = [
+    {id:'a', w:4, h:3, fill:'#ffd400', ink:'#141414'}, // 4×3
+    {id:'b', w:3, h:3, fill:'#1652ce', ink:'#ffffff'}, // 3×3
+    {id:'c', w:5, h:2, fill:'#e11d28', ink:'#ffffff'}, // 2×5
+    {id:'d', w:4, h:2, fill:'#141414', ink:'#ffffff'}, // 2×4
+    {id:'e', w:3, h:2, fill:'#ffd400', ink:'#141414'}, // 2×3
+    {id:'f', w:2, h:2, fill:'#e11d28', ink:'#ffffff'}, // 2×2
+    {id:'g', w:5, h:1, fill:'#1652ce', ink:'#ffffff'}, // 1×5
+    {id:'h', w:4, h:1, fill:'#f5f2e9', ink:'#141414'}, // 1×4
+    {id:'i', w:3, h:1, fill:'#141414', ink:'#ffffff'}, // 1×3
+    {id:'j', w:2, h:1, fill:'#f5f2e9', ink:'#141414'}, // 1×2
+    {id:'k', w:1, h:1, fill:'#e11d28', ink:'#ffffff'}  // 1×1
+  ];
+
+  const board = document.getElementById('board');
+  const tray  = document.getElementById('tray');
+  const ghost = document.getElementById('ghost');
+  const countEl = document.getElementById('count');
+  const timerEl = document.getElementById('timer');
+  const winEl = document.getElementById('win');
+  const winTimeEl = document.getElementById('winTime');
+
+  let cell = 44, trayCell = 30;
+  let grid = [];               // grid[r][c] = pieceId | null
+  let pieces = {};             // id -> {def, el, rot, placed, r, c}
+  let selectedId = null;
+  let drag = null;             // active drag state
+  let startTime = null, tickTimer = null;
+
+  function label(def){ return def.h + '×' + def.w > '' ? '' : ''; } // placeholder (unused)
+
+  function dims(p){                     // effective [cols, rows]
+    return p.rot === 0 ? [p.def.w, p.def.h] : [p.def.h, p.def.w];
+  }
+  function baseLabel(def){              // human label matches the paper list: shorter × longer
+    const a = Math.min(def.w, def.h), b = Math.max(def.w, def.h);
+    return a + '×' + b;
+  }
+
+  function computeCells(){
+    const maxW = Math.min(window.innerWidth - 44, 560);
+    cell = Math.max(30, Math.min(Math.floor(maxW / 8), 62));
+    trayCell = Math.round(cell * 0.66);
+    document.documentElement.style.setProperty('--cell', cell + 'px');
+    document.documentElement.style.setProperty('--tray', trayCell + 'px');
+  }
+
+  function makePieces(){
+    // clear any pieces still sitting on the board or tray from a previous round
+    board.querySelectorAll('.piece').forEach(el => el.remove());
+    tray.innerHTML = '';
+    pieces = {};
+    DEFS.forEach(def => {
+      const el = document.createElement('div');
+      el.className = 'piece';
+      el.style.background = def.fill;
+      el.style.color = def.ink;
+      el.dataset.id = def.id;
+      const tag = document.createElement('span');
+      tag.className = 'tag';
+      tag.textContent = baseLabel(def);
+      el.appendChild(tag);
+      el.addEventListener('pointerdown', onPointerDown);
+      pieces[def.id] = {def, el, rot:0, placed:false, r:null, c:null};
+      tray.appendChild(el);
+      sizeToTray(pieces[def.id]);
+    });
+  }
+
+  function sizeToTray(p){
+    const [cols, rows] = dims(p);
+    p.el.style.position = 'static';
+    p.el.style.left = p.el.style.top = '';
+    p.el.style.width  = (cols * trayCell) + 'px';
+    p.el.style.height = (rows * trayCell) + 'px';
+  }
+  function sizeToBoard(p){
+    const [cols, rows] = dims(p);
+    p.el.style.width  = (cols * cell) + 'px';
+    p.el.style.height = (rows * cell) + 'px';
+  }
+
+  function newGrid(){
+    grid = [];
+    for(let r=0;r<N;r++){ grid.push(new Array(N).fill(null)); }
+  }
+
+  function fits(p, r, c){
+    const [cols, rows] = dims(p);
+    if(r < 0 || c < 0 || r + rows > N || c + cols > N) return false;
+    for(let rr=r; rr<r+rows; rr++)
+      for(let cc=c; cc<c+cols; cc++)
+        if(grid[rr][cc]) return false;
+    return true;
+  }
+  function occupy(p, val){
+    const [cols, rows] = dims(p);
+    for(let rr=p.r; rr<p.r+rows; rr++)
+      for(let cc=p.c; cc<p.c+cols; cc++)
+        grid[rr][cc] = val;
+  }
+
+  function place(p, r, c){
+    p.r = r; p.c = c; p.placed = true;
+    occupy(p, p.def.id);
+    p.el.classList.add('placed');
+    board.appendChild(p.el);
+    p.el.style.position = 'absolute';
+    p.el.style.left = (c * cell) + 'px';
+    p.el.style.top  = (r * cell) + 'px';
+    sizeToBoard(p);
+    updateStatus();
+  }
+  function toTray(p){
+    if(p.placed){ occupy(p, null); }
+    p.placed = false; p.r = p.c = null;
+    p.el.classList.remove('placed');
+    tray.appendChild(p.el);
+    sizeToTray(p);
+    updateStatus();
+  }
+
+  function select(id){
+    if(selectedId && pieces[selectedId]) pieces[selectedId].el.classList.remove('selected');
+    selectedId = id;
+    if(id && pieces[id]) pieces[id].el.classList.add('selected');
+  }
+
+  function rotate(p, aroundPointer){
+    if(p.def.w === p.def.h) return; // square: nothing to do
+    if(drag && drag.piece === p){
+      p.rot ^= 1;
+      sizeToBoard(p);
+      moveDragEl(drag.lastX, drag.lastY);
+      updateGhost();
+      return;
+    }
+    if(p.placed){
+      const r = p.r, c = p.c;
+      occupy(p, null);
+      p.rot ^= 1;
+      if(fits(p, r, c)){ p.r=r; p.c=c; occupy(p, p.def.id); sizeToBoard(p); }
+      else { toTray(p); }
+    } else {
+      p.rot ^= 1;
+      sizeToTray(p);
+    }
+  }
+
+  /* ---------- dragging ---------- */
+  function onPointerDown(e){
+    const id = e.currentTarget.dataset.id;
+    const p = pieces[id];
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const rect = p.el.getBoundingClientRect();
+    drag = {
+      piece: p, pointerId: e.pointerId,
+      fx: (e.clientX - rect.left) / rect.width,
+      fy: (e.clientY - rect.top) / rect.height,
+      startX: e.clientX, startY: e.clientY,
+      lastX: e.clientX, lastY: e.clientY,
+      moved: false, wasPlaced: p.placed
+    };
+    select(id);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+    e.preventDefault();
+  }
+
+  function beginDrag(){
+    const p = drag.piece;
+    if(p.placed){ occupy(p, null); p.placed = false; }
+    p.el.classList.add('dragging');
+    p.el.style.position = 'fixed';
+    sizeToBoard(p);
+  }
+
+  function moveDragEl(x, y){
+    const p = drag.piece;
+    const w = p.el.offsetWidth, h = p.el.offsetHeight;
+    p.el.style.left = (x - drag.fx * w) + 'px';
+    p.el.style.top  = (y - drag.fy * h) + 'px';
+  }
+
+  function snapTarget(){
+    const p = drag.piece;
+    const brect = board.getBoundingClientRect();
+    const prect = p.el.getBoundingClientRect();
+    const c = Math.round((prect.left - brect.left) / cell);
+    const r = Math.round((prect.top - brect.top) / cell);
+    return {r, c};
+  }
+
+  function updateGhost(){
+    const p = drag.piece;
+    const [cols, rows] = dims(p);
+    const {r, c} = snapTarget();
+    const brect = board.getBoundingClientRect();
+    const prect = p.el.getBoundingClientRect();
+    const inside = prect.left < brect.right && prect.right > brect.left &&
+                   prect.top < brect.bottom && prect.bottom > brect.top;
+    if(!inside){ ghost.style.display = 'none'; drag.valid = false; return; }
+    ghost.style.display = 'block';
+    ghost.style.width  = (cols * cell) + 'px';
+    ghost.style.height = (rows * cell) + 'px';
+    ghost.style.left = (Math.max(0, Math.min(c, N - cols)) * cell) + 'px';
+    ghost.style.top  = (Math.max(0, Math.min(r, N - rows)) * cell) + 'px';
+    const ok = fits(p, r, c);
+    ghost.classList.toggle('bad', !ok);
+    drag.valid = ok; drag.snapR = r; drag.snapC = c;
+  }
+
+  function onPointerMove(e){
+    if(!drag || e.pointerId !== drag.pointerId) return;
+    drag.lastX = e.clientX; drag.lastY = e.clientY;
+    if(!drag.moved){
+      const d = Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY);
+      if(d < 6) return;
+      drag.moved = true;
+      beginDrag();
+    }
+    moveDragEl(e.clientX, e.clientY);
+    updateGhost();
+    e.preventDefault();
+  }
+
+  function onPointerUp(e){
+    if(!drag || e.pointerId !== drag.pointerId) return;
+    window.removeEventListener('pointermove', onPointerMove);
+    window.removeEventListener('pointerup', onPointerUp);
+    window.removeEventListener('pointercancel', onPointerUp);
+    const p = drag.piece;
+    ghost.style.display = 'none';
+
+    if(!drag.moved){
+      handleTap(p);
+      drag = null;
+      return;
+    }
+
+    p.el.classList.remove('dragging');
+    p.el.style.position = '';
+    p.el.style.left = p.el.style.top = '';
+
+    if(drag.valid){ ensureTimer(); place(p, drag.snapR, drag.snapC); }
+    else { toTray(p); }
+    drag = null;
+  }
+
+  let lastTapId = null, lastTapTime = 0;
+  function handleTap(p){
+    const now = Date.now();
+    if(lastTapId === p.def.id && now - lastTapTime < 320){
+      rotate(p); lastTapId = null;
+    } else {
+      lastTapId = p.def.id; lastTapTime = now;
+      select(p.def.id);
+    }
+  }
+
+  /* ---------- status / timer ---------- */
+  function placedCount(){ return DEFS.filter(d => pieces[d.id].placed).length; }
+  function updateStatus(){
+    const n = placedCount();
+    countEl.textContent = n;
+    if(n === DEFS.length){ win(); }
+  }
+  function fmt(ms){
+    const s = Math.floor(ms/1000);
+    return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0');
+  }
+  function ensureTimer(){
+    if(startTime) return;
+    startTime = Date.now();
+    tickTimer = setInterval(()=>{ timerEl.textContent = fmt(Date.now()-startTime); }, 500);
+  }
+  function stopTimer(){ if(tickTimer){ clearInterval(tickTimer); tickTimer=null; } }
+
+  function win(){
+    stopTimer();
+    winTimeEl.textContent = startTime ? fmt(Date.now()-startTime) : '0:00';
+    winEl.classList.remove('hidden');
+  }
+
+  /* ---------- solver ---------- */
+  // Fills every empty cell using the remaining (unplaced) pieces. Respects pieces already on board.
+  function solveRemaining(){
+    const g = grid.map(row => row.map(v => v ? 1 : 0));
+    const rem = DEFS.filter(d => !pieces[d.id].placed).map(d => ({id:d.id, w:d.w, h:d.h}));
+    const used = new Array(rem.length).fill(false);
+    const out = [];
+    function firstEmpty(){
+      for(let r=0;r<N;r++) for(let c=0;c<N;c++) if(!g[r][c]) return [r,c];
+      return null;
+    }
+    function bt(){
+      const fe = firstEmpty();
+      if(!fe) return true;
+      const [r,c] = fe;
+      for(let i=0;i<rem.length;i++){
+        if(used[i]) continue;
+        const pc = rem[i];
+        const orients = pc.w === pc.h ? [[pc.w,pc.h]] : [[pc.w,pc.h],[pc.h,pc.w]];
+        for(let o=0;o<orients.length;o++){
+          const [w,h] = orients[o];
+          if(r+h>N || c+w>N) continue;
+          let ok = true;
+          for(let rr=r; rr<r+h && ok; rr++) for(let cc=c; cc<c+w; cc++) if(g[rr][cc]){ ok=false; break; }
+          if(!ok) continue;
+          for(let rr=r; rr<r+h; rr++) for(let cc=c; cc<c+w; cc++) g[rr][cc]=1;
+          used[i]=true; out.push({id:pc.id, r, c, rot:o});
+          if(bt()) return true;
+          out.pop(); used[i]=false;
+          for(let rr=r; rr<r+h; rr++) for(let cc=c; cc<c+w; cc++) g[rr][cc]=0;
+        }
+      }
+      return false;
+    }
+    return bt() ? out : null;
+  }
+
+  function hint(){
+    const sol = solveRemaining();
+    if(!sol){ flashMessage('目前的擺法沒辦法拼完,先移開幾個方塊再試試。'); return; }
+    if(sol.length === 0) return;
+    const step = sol[0];               // the piece for the top-left empty cell
+    const p = pieces[step.id];
+    ensureTimer();
+    p.rot = step.rot;
+    sizeToBoard(p);
+    place(p, step.r, step.c);
+    select(null);
+  }
+
+  function solveAll(){
+    // Lift everything, then lay down a full solution.
+    DEFS.forEach(d => { if(pieces[d.id].placed) toTray(pieces[d.id]); pieces[d.id].rot = 0; });
+    newGrid();
+    const sol = solveRemaining();
+    if(!sol){ flashMessage('找不到解(理論上不會發生)。'); return; }
+    ensureTimer();
+    sol.forEach(step => {
+      const p = pieces[step.id];
+      p.rot = step.rot;
+      sizeToBoard(p);
+      place(p, step.r, step.c);
+    });
+    select(null);
+  }
+
+  let msgTimer = null;
+  function flashMessage(text){
+    let bar = document.getElementById('flash');
+    if(!bar){
+      bar = document.createElement('div');
+      bar.id = 'flash';
+      bar.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);'+
+        'background:#141414;color:#f3f0e7;padding:10px 16px;font-size:14px;'+
+        'border:2px solid #141414;z-index:12000;max-width:88vw;text-align:center;';
+      document.body.appendChild(bar);
+    }
+    bar.textContent = text;
+    bar.style.display = 'block';
+    clearTimeout(msgTimer);
+    msgTimer = setTimeout(()=>{ bar.style.display='none'; }, 2600);
+  }
+
+  function reset(){
+    window.removeEventListener('pointermove', onPointerMove);
+    window.removeEventListener('pointerup', onPointerUp);
+    window.removeEventListener('pointercancel', onPointerUp);
+    drag = null; ghost.style.display = 'none';
+    stopTimer(); startTime = null; timerEl.textContent = '0:00';
+    winEl.classList.add('hidden');
+    select(null);
+    computeCells();
+    newGrid();
+    makePieces();
+    updateStatus();
+  }
+
+  /* ---------- controls ---------- */
+  document.getElementById('rotateBtn').addEventListener('click', ()=>{
+    if(selectedId && pieces[selectedId]) rotate(pieces[selectedId]);
+  });
+  document.getElementById('hintBtn').addEventListener('click', hint);
+  document.getElementById('solveBtn').addEventListener('click', solveAll);
+  document.getElementById('resetBtn').addEventListener('click', reset);
+  document.getElementById('againBtn').addEventListener('click', reset);
+
+  window.addEventListener('keydown', (e)=>{
+    if(e.key === 'r' || e.key === 'R'){
+      if(drag){ rotate(drag.piece); }
+      else if(selectedId && pieces[selectedId]){ rotate(pieces[selectedId]); }
+    } else if(e.key === 'Escape' && drag && drag.moved){
+      // cancel drag back to tray
+      const p = drag.piece;
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+      ghost.style.display='none';
+      p.el.classList.remove('dragging');
+      p.el.style.position=''; p.el.style.left=p.el.style.top='';
+      toTray(p); drag = null;
+    }
+  });
+
+  let resizeTimer = null;
+  window.addEventListener('resize', ()=>{
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(()=>{
+      computeCells();
+      DEFS.forEach(d=>{
+        const p = pieces[d.id];
+        if(p.placed){ p.el.style.left=(p.c*cell)+'px'; p.el.style.top=(p.r*cell)+'px'; sizeToBoard(p); }
+        else if(!(drag && drag.piece===p && drag.moved)){ sizeToTray(p); }
+      });
+    }, 120);
+  });
+
+  /* ---------- go ---------- */
+  reset();
+})();
+</script>
+</body>
+</html>
