@@ -67,6 +67,30 @@
   button.accent:hover{background:var(--ink); color:#ffd400;}
   button:focus-visible{outline:3px solid #1652ce; outline-offset:2px;}
 
+  /* Mode / level selector */
+  .modebar{
+    display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+    margin:6px 0 10px;
+  }
+  .modebtn{background:var(--panel);}
+  .modebtn.star{letter-spacing:0; color:#c99a00;}
+  .modebtn.active{background:var(--ink); color:var(--paper);}
+  .modebtn.star.active{color:#ffd400;}
+  .levelmenu{
+    display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+    background:var(--panel); border:2px dashed var(--ink);
+    padding:10px; margin:0 0 10px;
+  }
+  .levelmenu.hidden{display:none;}
+  .lvlbtn{min-width:42px; padding:8px 10px;}
+  .lvlbtn.active{background:var(--ink); color:var(--paper);}
+  .menuhint{font-size:13px; color:#5a5648; padding:2px 4px;}
+  .modelabel{
+    margin:0 2px 12px; font-size:13px; line-height:1.5;
+    color:#5a5648; min-height:1.2em;
+  }
+  .modelabel b{color:var(--ink);}
+
   /* Board */
   .board-wrap{
     display:flex; justify-content:center;
@@ -109,6 +133,7 @@
   }
   .piece.dragging{cursor:grabbing; z-index:9999; opacity:.92; box-shadow:4px 6px 0 rgba(0,0,0,.25);}
   .piece.placed{cursor:grab;}
+  .piece.locked{cursor:default; box-shadow:inset 0 0 0 3px rgba(255,255,255,.22);}
   .piece.selected{outline:3px dashed #1652ce; outline-offset:3px;}
   .piece .tag{
     padding:1px 4px; border-radius:2px;
@@ -142,8 +167,19 @@
   <div class="app">
     <header>
       <h1>方塊鋪滿 <span class="n">8×8</span></h1>
-      <p class="sub">把 11 個方塊全部放進格子裡,剛好鋪滿、不留空隙、不重疊。<br>拖曳放置 · 雙擊或選取後按「旋轉」轉向 · 按 R 也可旋轉。</p>
+      <p class="sub">把方塊放進格子裡,剛好鋪滿、不留空隙、不重疊。<br>拖曳放置 · 雙擊或選取後按「旋轉」轉向 · 按 R 也可旋轉。</p>
     </header>
+
+    <div class="modebar" id="modebar">
+      <button data-mode="free" class="modebtn">自由</button>
+      <button data-stars="1" class="modebtn star">★</button>
+      <button data-stars="2" class="modebtn star">★★</button>
+      <button data-stars="3" class="modebtn star">★★★</button>
+      <button data-stars="4" class="modebtn star">★★★★</button>
+      <button data-stars="5" class="modebtn star">★★★★★</button>
+    </div>
+    <div class="levelmenu hidden" id="levelmenu"></div>
+    <div class="modelabel" id="modelabel"></div>
 
     <div class="hud">
       <div class="stat">已放 <b id="count">0</b>/11</div>
@@ -198,6 +234,59 @@
     {id:'k', w:1, h:1, fill:'#e11d28', ink:'#ffffff'}  // 1×1
   ];
 
+  // The three "given" pieces (1×3, 1×2, 1×1) are always black.
+  // The other eight are coloured red / yellow / blue / white — two of each, randomly assigned.
+  const BLACK = {fill:'#141414', ink:'#ffffff'};
+  const BLACK_IDS = ['i','j','k'];
+  const PALETTE = [
+    {fill:'#e11d28', ink:'#ffffff'}, // red
+    {fill:'#ffd400', ink:'#141414'}, // yellow
+    {fill:'#1652ce', ink:'#ffffff'}, // blue
+    {fill:'#f5f2e9', ink:'#141414'}  // white
+  ];
+
+  // ---- Challenge levels (from the puzzle booklet) ----
+  // Each level pre-places three black pieces; the player fills the rest with the other eight.
+  // Coordinates are 1-based (row, col) of the piece's top-left cell. H = 橫(→), V = 直(↓).
+  const LEVELS = [
+    {id:1,  stars:1, k:[7,8], j:[4,7,'H'], i:[3,3,'V']},
+    {id:2,  stars:1, k:[7,6], j:[2,4,'H'], i:[6,6,'H']},
+    {id:3,  stars:1, k:[3,5], j:[3,6,'V'], i:[6,6,'H']},
+    {id:4,  stars:1, k:[8,7], j:[1,1,'H'], i:[6,1,'H']},
+    {id:5,  stars:1, k:[2,5], j:[5,6,'V'], i:[7,4,'H']},
+    {id:6,  stars:1, k:[8,2], j:[7,2,'H'], i:[3,1,'H']},
+    {id:7,  stars:1, k:[8,8], j:[5,6,'H'], i:[3,5,'H']},
+    {id:8,  stars:1, k:[8,8], j:[6,2,'H'], i:[3,2,'V']},
+    {id:9,  stars:2, k:[6,4], j:[4,3,'V'], i:[2,5,'V']},
+    {id:10, stars:2, k:[7,8], j:[5,4,'V'], i:[6,1,'H']},
+    {id:11, stars:2, k:[1,8], j:[3,7,'H'], i:[6,3,'H']},
+    {id:12, stars:2, k:[8,1], j:[6,1,'H'], i:[1,4,'V']},
+    {id:13, stars:2, k:[3,7], j:[8,2,'H'], i:[8,6,'H']},
+    {id:14, stars:2, k:[2,4], j:[7,3,'H'], i:[8,6,'H']},
+    {id:15, stars:2, k:[5,3], j:[3,7,'H'], i:[1,6,'H']},
+    {id:16, stars:2, k:[7,4], j:[2,5,'V'], i:[1,8,'V']},
+    {id:17, stars:2, k:[5,8], j:[5,5,'H'], i:[8,6,'H']},
+    {id:18, stars:2, k:[5,3], j:[7,4,'H'], i:[2,8,'V']}
+  ];
+
+  let currentLevel = null;   // null = free play; otherwise {id, stars, given:[{id,r,c,rot}]}
+
+  function buildGiven(raw){
+    return [
+      {id:'k', r:raw.k[0]-1, c:raw.k[1]-1, rot:0},
+      {id:'j', r:raw.j[0]-1, c:raw.j[1]-1, rot: raw.j[2]==='V' ? 1 : 0},
+      {id:'i', r:raw.i[0]-1, c:raw.i[1]-1, rot: raw.i[2]==='V' ? 1 : 0}
+    ];
+  }
+  function assignColors(){
+    const pool = [];
+    PALETTE.forEach(col => { pool.push(col, col); });        // two of each colour → 8
+    for(let i=pool.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
+    const map = {}; let idx = 0;
+    DEFS.forEach(d => { map[d.id] = BLACK_IDS.includes(d.id) ? BLACK : pool[idx++]; });
+    return map;
+  }
+
   const board = document.getElementById('board');
   const tray  = document.getElementById('tray');
   const ghost = document.getElementById('ghost');
@@ -236,21 +325,34 @@
     board.querySelectorAll('.piece').forEach(el => el.remove());
     tray.innerHTML = '';
     pieces = {};
+    const colorMap = assignColors();
     DEFS.forEach(def => {
+      const col = colorMap[def.id];
       const el = document.createElement('div');
       el.className = 'piece';
-      el.style.background = def.fill;
-      el.style.color = def.ink;
+      el.style.background = col.fill;
+      el.style.color = col.ink;
       el.dataset.id = def.id;
       const tag = document.createElement('span');
       tag.className = 'tag';
       tag.textContent = baseLabel(def);
       el.appendChild(tag);
       el.addEventListener('pointerdown', onPointerDown);
-      pieces[def.id] = {def, el, rot:0, placed:false, r:null, c:null};
+      pieces[def.id] = {def, el, rot:0, placed:false, locked:false, r:null, c:null};
       tray.appendChild(el);
       sizeToTray(pieces[def.id]);
     });
+    // Challenge mode: pre-place and lock the three given (black) pieces.
+    if(currentLevel){
+      currentLevel.given.forEach(g => {
+        const p = pieces[g.id];
+        p.rot = g.rot;
+        sizeToBoard(p);
+        place(p, g.r, g.c);
+        p.locked = true;
+        p.el.classList.add('locked');
+      });
+    }
   }
 
   function sizeToTray(p){
@@ -313,6 +415,7 @@
   }
 
   function rotate(p, aroundPointer){
+    if(p.locked) return;            // given pieces are fixed
     if(p.def.w === p.def.h) return; // square: nothing to do
     if(drag && drag.piece === p){
       p.rot ^= 1;
@@ -337,6 +440,7 @@
   function onPointerDown(e){
     const id = e.currentTarget.dataset.id;
     const p = pieces[id];
+    if(p.locked) return;                 // given pieces are fixed
     e.currentTarget.setPointerCapture(e.pointerId);
     const rect = p.el.getBoundingClientRect();
     drag = {
@@ -520,9 +624,13 @@
   }
 
   function solveAll(){
-    // Lift everything, then lay down a full solution.
-    DEFS.forEach(d => { if(pieces[d.id].placed) toTray(pieces[d.id]); pieces[d.id].rot = 0; });
-    newGrid();
+    // Lift every movable piece (locked given pieces stay), then lay down a full solution.
+    DEFS.forEach(d => {
+      const p = pieces[d.id];
+      if(p.locked) return;
+      if(p.placed) toTray(p);
+      p.rot = 0;
+    });
     const sol = solveRemaining();
     if(!sol){ flashMessage('找不到解(理論上不會發生)。'); return; }
     ensureTimer();
@@ -605,8 +713,69 @@
     }, 120);
   });
 
+  /* ---------- mode / level menu ---------- */
+  const modebar   = document.getElementById('modebar');
+  const levelmenu = document.getElementById('levelmenu');
+  const modelabel = document.getElementById('modelabel');
+
+  function setActiveMode(btn){
+    modebar.querySelectorAll('button').forEach(x => x.classList.toggle('active', x === btn));
+  }
+  function updateModeLabel(){
+    if(currentLevel){
+      modelabel.innerHTML = '<b>第 ' + currentLevel.id + ' 題</b> · 難度 ' +
+        '★'.repeat(currentLevel.stars) +
+        ' · 黑色三塊已固定,用其餘 8 塊補滿空白。';
+    } else {
+      modelabel.innerHTML = '<b>自由模式</b> · 11 塊全部自己擺,把 8×8 剛好鋪滿。';
+    }
+  }
+  function startFree(){
+    currentLevel = null;
+    levelmenu.classList.add('hidden');
+    reset();
+    updateModeLabel();
+  }
+  function startLevel(raw){
+    currentLevel = {id:raw.id, stars:raw.stars, given: buildGiven(raw)};
+    reset();
+    updateModeLabel();
+  }
+  function showLevelMenu(stars){
+    const items = LEVELS.filter(l => l.stars === stars);
+    levelmenu.innerHTML = '';
+    if(items.length === 0){
+      const s = document.createElement('span');
+      s.className = 'menuhint';
+      s.textContent = '這個難度的題目還沒加入,晚點補上。';
+      levelmenu.appendChild(s);
+    } else {
+      items.forEach(raw => {
+        const b = document.createElement('button');
+        b.className = 'lvlbtn';
+        b.textContent = raw.id;
+        b.addEventListener('click', () => {
+          startLevel(raw);
+          levelmenu.querySelectorAll('.lvlbtn').forEach(x => x.classList.toggle('active', x === b));
+        });
+        levelmenu.appendChild(b);
+      });
+    }
+    levelmenu.classList.remove('hidden');
+  }
+
+  modebar.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if(!b) return;
+    setActiveMode(b);
+    if(b.dataset.mode === 'free'){ startFree(); }
+    else { showLevelMenu(+b.dataset.stars); }
+  });
+
   /* ---------- go ---------- */
+  setActiveMode(modebar.querySelector('[data-mode="free"]'));
   reset();
+  updateModeLabel();
 })();
 </script>
 </body>
