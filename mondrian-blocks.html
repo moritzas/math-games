@@ -41,6 +41,12 @@
     background:var(--ink); color:var(--paper);
     padding:.08em .3em;
   }
+  h1 .now{
+    margin-left:auto; font-size:.5em; letter-spacing:.05em;
+    color:var(--ink); border:2px solid var(--ink);
+    padding:.15em .45em; white-space:nowrap;
+  }
+  h1 .now:empty{display:none;}
   .sub{margin:8px 2px 0; color:#5a5648; font-size:14px; line-height:1.5;}
 
   .hud{
@@ -83,14 +89,14 @@
   .modebtn.active{background:var(--ink); color:var(--paper);}
   .modebtn.star.active{color:#ffd400;}
   .levelmenu{
-    display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+    display:grid; grid-template-columns:repeat(8,1fr); gap:5px;
     background:var(--panel); border:2px dashed var(--ink);
-    padding:10px; margin:0 0 10px;
+    padding:8px; margin:0 0 10px;
   }
   .levelmenu.hidden{display:none;}
-  .lvlbtn{min-width:42px; padding:8px 10px;}
+  .lvlbtn{min-width:0; padding:7px 0; font-size:13px; text-align:center;}
   .lvlbtn.active{background:var(--ink); color:var(--paper);}
-  .menuhint{font-size:13px; color:#5a5648; padding:2px 4px;}
+  .menuhint{font-size:13px; color:#5a5648; padding:2px 4px; grid-column:1/-1;}
 
   /* Board */
   .board-wrap{
@@ -170,7 +176,7 @@
 <body>
   <div class="app">
     <header>
-      <h1>方塊鋪滿 <span class="n">8×8</span></h1>
+      <h1>方塊鋪滿 <span class="n">8×8</span><span class="now" id="nowlevel"></span></h1>
       <p class="sub">雙擊或選取後按 R 也可旋轉。</p>
     </header>
 
@@ -786,6 +792,7 @@
   /* ---------- mode / level menu ---------- */
   const modebar   = document.getElementById('modebar');
   const levelmenu = document.getElementById('levelmenu');
+  const nowlevel  = document.getElementById('nowlevel');
 
   function setActiveMode(btn){
     modebar.querySelectorAll('button').forEach(x => x.classList.toggle('active', x === btn));
@@ -793,10 +800,13 @@
   function startFree(){
     currentLevel = null;
     levelmenu.classList.add('hidden');
+    nowlevel.textContent = '';
     reset();
   }
   function startLevel(raw){
     currentLevel = {id:raw.id, stars:raw.stars, given: buildGiven(raw)};
+    nowlevel.textContent = '第 ' + raw.id + ' 題';
+    levelmenu.classList.add('hidden');   // collapse the menu once a level is chosen
     reset();
   }
   function showLevelMenu(stars){
@@ -810,12 +820,9 @@
     } else {
       items.forEach(raw => {
         const b = document.createElement('button');
-        b.className = 'lvlbtn';
+        b.className = 'lvlbtn' + (currentLevel && currentLevel.id === raw.id ? ' active' : '');
         b.textContent = raw.id;
-        b.addEventListener('click', () => {
-          startLevel(raw);
-          levelmenu.querySelectorAll('.lvlbtn').forEach(x => x.classList.toggle('active', x === b));
-        });
+        b.addEventListener('click', () => { startLevel(raw); });
         levelmenu.appendChild(b);
       });
     }
