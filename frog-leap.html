@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>換位跳棋</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#E9ECF2; --card:#FFFFFF; --ink:#1C2534; --muted:#5E6B82; --line:#D8DEE8;
+    --track:#26324A; --region:#2F3C57; --well:#3B4B6B; --well-edge:#4E6190;
+    --amber:#F2A73B; --amber-edge:#C67E15; --teal:#17A79E; --teal-edge:#0E756E;
+    --accent:#6C63FF; --hint:#FF5DA2; --good:#22B266;
+    --shadow:0 10px 30px rgba(28,37,52,.10), 0 2px 8px rgba(28,37,52,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font-family:"Noto Sans TC",system-ui,sans-serif;
+    background:radial-gradient(120% 80% at 50% -10%, #F3F5FA 0%, var(--bg) 55%) fixed;
+    color:var(--ink);line-height:1.55;padding:24px 16px 56px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:920px;margin:0 auto}
+  .eyebrow{font-family:"Space Grotesk",sans-serif;letter-spacing:.28em;text-transform:uppercase;
+    font-size:12px;color:var(--accent);font-weight:600;margin:0 0 6px}
+  h1{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:clamp(28px,5vw,42px);
+    margin:0 0 8px;letter-spacing:-.01em}
+  .lede{color:var(--muted);margin:0 0 20px;max-width:60ch}
+  .lede b{color:var(--ink);font-weight:500}
+
+  .tabs{display:inline-flex;background:#EEF1F7;border:1px solid var(--line);border-radius:13px;
+    padding:4px;gap:4px;margin-bottom:22px}
+  .tab{font-family:"Space Grotesk";font-weight:600;font-size:14px;border:0;background:transparent;
+    color:var(--muted);padding:8px 20px;border-radius:10px;cursor:pointer;transition:.15s}
+  .tab.active{background:var(--card);color:var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  .tab:hover:not(.active){color:var(--ink)}
+  .tab:focus-visible{outline:3px solid rgba(108,99,255,.4);outline-offset:1px}
+
+  .game{display:none}
+  .game.active{display:block}
+  .sublede{color:var(--muted);margin:0 0 16px;max-width:58ch;font-size:14.5px}
+  .sublede b{color:var(--ink);font-weight:500}
+
+  .board-card{background:var(--card);border-radius:22px;box-shadow:var(--shadow);
+    padding:22px 20px 20px;border:1px solid var(--line)}
+  .hud{display:flex;flex-wrap:wrap;align-items:center;gap:14px 22px;margin-bottom:16px}
+
+  .stepper{display:inline-flex;align-items:center;gap:2px;background:#EEF1F7;
+    border:1px solid var(--line);border-radius:12px;padding:3px}
+  .stepper span{font-family:"Space Grotesk";font-weight:600;min-width:92px;text-align:center;
+    font-size:14px;color:var(--ink)}
+  .stepper span small{color:var(--muted);font-weight:500}
+  .icon-btn{border:0;background:var(--card);color:var(--ink);width:30px;height:30px;border-radius:9px;
+    font-size:18px;font-weight:700;cursor:pointer;line-height:1;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+  .icon-btn:hover{background:#fff;color:var(--accent)}
+  .icon-btn:disabled{opacity:.35;cursor:not-allowed}
+
+  .legend{display:flex;gap:16px;font-size:13px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .dotc{width:14px;height:14px;border-radius:50%;border:2px solid}
+  .dotc.a{background:var(--amber);border-color:var(--amber-edge)}
+  .dotc.b{background:var(--teal);border-color:var(--teal-edge)}
+
+  .counts{display:flex;align-items:baseline;gap:18px;margin-left:auto}
+  .count{display:flex;flex-direction:column;line-height:1.05}
+  .count b{font-family:"Space Grotesk";font-weight:700;font-size:26px;font-variant-numeric:tabular-nums}
+  .count.sub b{color:var(--muted);font-size:20px;font-weight:600}
+  .count small{color:var(--muted);font-size:11px;letter-spacing:.05em}
+
+  .board-outer{background:var(--track);border-radius:18px;padding:6px;outline:none;position:relative}
+  .board-outer:focus-visible{box-shadow:0 0 0 3px var(--accent)}
+  svg{display:block;width:100%;height:auto;touch-action:manipulation}
+  .region{fill:var(--region)}
+  .well{fill:var(--well);stroke:var(--well-edge);stroke-width:1.5;cursor:pointer;transition:fill .15s}
+  .well.is-empty{fill:#1E2942;stroke-dasharray:5 5;stroke:var(--accent);opacity:.95}
+  .well:hover{fill:#47597E}
+  .cursor{fill:none;stroke:#fff;stroke-width:3;opacity:0;pointer-events:none;transition:transform .12s ease,opacity .12s}
+  .board-outer.kb .cursor{opacity:.9}
+
+  .piece{cursor:pointer;transition:transform .28s cubic-bezier(.33,1.15,.5,1)}
+  .no-anim .piece{transition:none}
+  .disc{stroke-width:2.5}
+  .piece[data-color="L"] .disc,.piece[data-color="A"] .disc{fill:var(--amber);stroke:var(--amber-edge)}
+  .piece[data-color="R"] .disc,.piece[data-color="B"] .disc{fill:var(--teal);stroke:var(--teal-edge)}
+  .gloss{fill:rgba(255,255,255,.28)}
+  .ring{fill:none;stroke:#fff;stroke-width:3;opacity:0;transition:opacity .18s;transform-origin:center}
+  .piece.movable .ring{opacity:.85;animation:pulse 1.6s ease-in-out infinite}
+  .piece.hintpick .ring{stroke:var(--hint);opacity:1;stroke-width:4;animation:none}
+  @keyframes pulse{0%,100%{transform:scale(1);opacity:.4}50%{transform:scale(1.13);opacity:.95}}
+  .hop{transform-box:fill-box;transform-origin:center}
+  .hop.jumping{animation:hop .34s ease}
+  @keyframes hop{0%{transform:translateY(0)}45%{transform:translateY(-47px)}100%{transform:translateY(0)}}
+
+  .status{margin-top:14px;min-height:26px;font-size:15px;font-weight:500;display:flex;align-items:center;gap:8px}
+  .status .dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:none}
+  .status.win{color:var(--good)} .status.win .dot{background:var(--good)}
+  .status.stuck{color:#EE8A3B} .status.stuck .dot{background:#EE8A3B}
+  .status.hint{color:var(--hint)} .status.hint .dot{background:var(--hint)}
+
+  .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+  .btn{font-family:"Noto Sans TC";font-weight:500;font-size:14px;border:1px solid var(--line);
+    background:var(--card);color:var(--ink);padding:9px 16px;border-radius:11px;cursor:pointer;
+    display:inline-flex;align-items:center;gap:6px;transition:.15s}
+  .btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn:disabled{opacity:.5;cursor:default;border-color:var(--line);color:var(--muted)}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.primary:hover{filter:brightness(1.06);color:#fff}
+  .btn:focus-visible{outline:3px solid rgba(108,99,255,.4);outline-offset:1px}
+
+  .grid{display:grid;grid-template-columns:1.15fr .85fr;gap:16px;margin-top:20px}
+  @media(max-width:640px){.grid{grid-template-columns:1fr}.counts{margin-left:0;width:100%}}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;margin-top:20px}
+  .grid .panel{margin-top:0}
+  .panel h2{font-family:"Space Grotesk";font-size:15px;letter-spacing:.02em;margin:0 0 8px}
+  .panel p{margin:0 0 10px;color:var(--muted);font-size:13.5px}
+  .rules{padding-left:18px;margin:8px 0 0}
+  .rules li{font-size:13.5px;margin:5px 0}
+  .rules b{color:var(--amber-edge)} .rules i{color:var(--teal-edge);font-style:normal;font-weight:700}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{padding:6px 4px;text-align:center;font-variant-numeric:tabular-nums}
+  th{font-family:"Space Grotesk";font-weight:600;color:var(--muted);font-size:12px;border-bottom:1.5px solid var(--line)}
+  td{border-bottom:1px solid #EEF1F7}
+  tr.here{background:#F3F1FF} tr.here td:first-child{font-weight:700;color:var(--accent)}
+  .best-yes{color:var(--good);font-weight:700} .best-no{color:var(--muted)}
+  .reveal{margin-top:10px;font-size:13px;color:var(--muted);display:none}
+  .reveal.show{display:block}
+  .reveal code{font-family:"Space Grotesk";background:#F3F1FF;color:var(--accent);padding:1px 7px;border-radius:6px;font-weight:600}
+  .link-btn{background:none;border:0;color:var(--accent);font-size:13px;cursor:pointer;padding:0;font-weight:600;
+    text-decoration:underline;text-underline-offset:3px}
+  .kbd{font-family:"Space Grotesk";background:#EEF1F7;border:1px solid var(--line);border-radius:6px;padding:1px 7px;font-size:12px}
+  @media(prefers-reduced-motion:reduce){
+    .piece,.cursor{transition:none}.hop.jumping{animation:none}.piece.movable .ring{animation:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">數學遊戲 · 換位</p>
+  <h1>換位跳棋</h1>
+  <p class="lede">同一個蛙跳問題的兩種版本：<b>一維</b>是一條直線兩端對換;<b>平面</b>是兩個 3×3 棋盤相接、擠過中央瓶頸對換。</p>
+
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-tab="line" role="tab">一維版</button>
+    <button class="tab" data-tab="planar" role="tab">平面版</button>
+  </div>
+
+  <!-- ============ 一維版 ============ -->
+  <section class="game active" id="game-line" role="tabpanel">
+    <p class="sublede">一排 2n+1 格,中間留空。<b>左邊只能往右、右邊只能往左</b>,用走或跳把兩邊完全交換。換不同的 n,看看最少步數藏著什麼規律。</p>
+    <div class="board-card">
+      <div class="hud">
+        <div class="stepper" role="group" aria-label="調整每邊棋子數 n">
+          <button class="icon-btn" data-el="nMinus" aria-label="減少 n">−</button>
+          <span>每邊 <b data-el="nVal">3</b> 顆 <small>(n)</small></span>
+          <button class="icon-btn" data-el="nPlus" aria-label="增加 n">＋</button>
+        </div>
+        <div class="counts">
+          <div class="count"><b data-el="moveCount">0</b><small>步數</small></div>
+          <div class="count sub"><b data-el="targetCount">15</b><small>理論最少</small></div>
+        </div>
+      </div>
+      <div class="board-outer" data-el="board" tabindex="0" role="application" aria-label="一維棋盤,用左右方向鍵移動游標,Enter 移動棋子"></div>
+      <div class="status" data-el="status"><span class="dot"></span><span data-el="statusText">點一顆能動的棋子,讓它走或跳進空格。</span></div>
+      <div class="actions">
+        <button class="btn" data-el="hint">💡 提示</button>
+        <button class="btn" data-el="undo" disabled>↶ 復原</button>
+        <button class="btn primary" data-el="reset">↺ 重新開始</button>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="panel">
+        <h2>玩法</h2>
+        <ul class="rules">
+          <li><b>左邊棋子</b>只能往右,<i>右邊棋子</i>只能往左,不能回頭。</li>
+          <li><b>走</b>:滑進相鄰的空格。</li>
+          <li><b>跳</b>:跨過相鄰的<u>一顆對方棋子</u>,落到後面的空格。</li>
+          <li>不能跳過同色、不能一次跳兩顆。</li>
+          <li>目標:兩邊棋子完全對調。</li>
+        </ul>
+        <p style="margin-top:12px">鍵盤／遙控器:<span class="kbd">← →</span> 移動游標,<span class="kbd">Enter</span> 移動棋子。</p>
+      </div>
+      <div class="panel">
+        <h2>最少步數紀錄</h2>
+        <p>每邊 n 顆時,理論最少步數如下。解出來就記錄最佳成績。</p>
+        <table><thead><tr><th>n</th><th>理論最少</th><th>你的最佳</th></tr></thead><tbody data-el="recordBody"></tbody></table>
+        <button class="link-btn" data-el="revealBtn" style="margin-top:12px">看看規律 →</button>
+        <div class="reveal" data-el="reveal">
+          最少步數 = <code>n² + 2n</code> = <code>n(n+2)</code>。<br>
+          依序是 3、8、15、24、35…,相鄰差為 3、5、7、9(二階差固定為 2),所以是二次關係。
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 平面版 ============ -->
+  <section class="game" id="game-planar" role="tabpanel">
+    <p class="sublede">兩個 3×3 棋盤在一個角落相接,共用格是空格。<b>四個方向都能走或跳</b>,所有棋子都得擠過中央瓶頸換到對面。挑戰:用最少步數完成,最佳解 46 步。</p>
+    <div class="board-card">
+      <div class="hud">
+        <div class="legend">
+          <span><i class="dotc a"></i>左上 8 顆</span>
+          <span><i class="dotc b"></i>右下 8 顆</span>
+        </div>
+        <div class="counts">
+          <div class="count"><b data-el="moveCount">0</b><small>步數</small></div>
+          <div class="count sub"><b data-el="targetCount">46</b><small>理論最少</small></div>
+        </div>
+      </div>
+      <div class="board-outer" data-el="board" tabindex="0" role="application" aria-label="平面換位棋盤,用方向鍵移動游標,Enter 移動棋子"></div>
+      <div class="status" data-el="status"><span class="dot"></span><span data-el="statusText">點一顆會發亮的棋子,讓它走或跳進空格。</span></div>
+      <div class="actions">
+        <button class="btn" data-el="hint">💡 提示</button>
+        <button class="btn" data-el="undo" disabled>↶ 復原</button>
+        <button class="btn primary" data-el="reset">↺ 重新開始</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>玩法</h2>
+      <ul class="rules">
+        <li>棋子可往上下左右任一方向移動,<b>沒有方向限制</b>(不能斜走斜跳)。</li>
+        <li><b>走</b>:滑進緊鄰的空格。</li>
+        <li><b>跳</b>:直線跨過緊鄰的<u>一顆棋子</u>(同色或異色都可以),落到後面的空格。</li>
+        <li>兩個棋盤只在中央那一格相連 —— 所有交換都得經過這個瓶頸。</li>
+        <li>目標:<b>左上</b>與<i>右下</i>兩邊棋子完全對調。</li>
+      </ul>
+      <p style="margin:12px 0 0;color:var(--muted);font-size:13px">鍵盤／遙控器:<span class="kbd">↑↓←→</span> 移動游標,<span class="kbd">Enter</span> 移動棋子。</p>
+    </div>
+  </section>
+</div>
+
+<script>
+const SVGNS="http://www.w3.org/2000/svg";
+
+/* ============================================================
+   一維版
+============================================================ */
+(function(){
+  const root=document.getElementById('game-line');
+  const $=s=>root.querySelector(s);
+  const PAD=34, CELL=76, CY=100, R=27, Hmax=8, Hmin=1;
+  const board=$('[data-el=board]'), nValEl=$('[data-el=nVal]'), moveCountEl=$('[data-el=moveCount]'),
+        targetCountEl=$('[data-el=targetCount]'), statusEl=$('[data-el=status]'), statusText=$('[data-el=statusText]'),
+        undoBtn=$('[data-el=undo]'), hintBtn=$('[data-el=hint]'), recordBody=$('[data-el=recordBody]');
+  let n=3, count, pieces=[], wells=[], cursorRect=null, cursor=0, moves=0, history=[], solved=false, best={}, hintPiece=null;
+  const cx=i=>PAD+i*CELL+CELL/2;
+  const minMoves=k=>k*k+2*k;
+
+  function buildBoard(){
+    count=2*n+1;
+    const W=PAD*2+count*CELL;
+    board.innerHTML='';
+    const svg=document.createElementNS(SVGNS,'svg');
+    svg.setAttribute('viewBox',`0 0 ${W} 168`); board.appendChild(svg);
+    wells=[];
+    const wg=document.createElementNS(SVGNS,'g'); svg.appendChild(wg);
+    for(let i=0;i<count;i++){
+      const r=document.createElementNS(SVGNS,'rect');
+      r.setAttribute('class','well');
+      r.setAttribute('x',PAD+i*CELL+7); r.setAttribute('y',CY-36);
+      r.setAttribute('width',CELL-14); r.setAttribute('height',72); r.setAttribute('rx',18);
+      r.addEventListener('click',()=>{cursor=i;doMove(i);}); wg.appendChild(r); wells.push(r);
+    }
+    cursorRect=document.createElementNS(SVGNS,'rect');
+    cursorRect.setAttribute('class','cursor'); cursorRect.setAttribute('width',CELL-10);
+    cursorRect.setAttribute('height',76); cursorRect.setAttribute('rx',20);
+    cursorRect.setAttribute('x',-(CELL-10)/2); cursorRect.setAttribute('y',CY-38); svg.appendChild(cursorRect);
+    pieces=[];
+    const pg=document.createElementNS(SVGNS,'g'); svg.appendChild(pg);
+    const make=(id,color,cell)=>{
+      const g=document.createElementNS(SVGNS,'g'); g.setAttribute('class','piece'); g.setAttribute('data-color',color);
+      const hop=document.createElementNS(SVGNS,'g'); hop.setAttribute('class','hop');
+      const ring=document.createElementNS(SVGNS,'circle'); ring.setAttribute('class','ring'); ring.setAttribute('r',R+7);
+      const disc=document.createElementNS(SVGNS,'circle'); disc.setAttribute('class','disc'); disc.setAttribute('r',R);
+      const gl=document.createElementNS(SVGNS,'ellipse'); gl.setAttribute('class','gloss');
+      gl.setAttribute('cx',0); gl.setAttribute('cy',-9); gl.setAttribute('rx',13); gl.setAttribute('ry',7);
+      hop.append(ring,disc,gl); g.appendChild(hop);
+      const p={id,color,cell,el:g,hopEl:hop};
+      g.addEventListener('click',()=>{cursor=p.cell;doMove(p.cell);}); pg.appendChild(g); return p;
+    };
+    for(let i=0;i<n;i++) pieces.push(make('L'+i,'L',i));
+    for(let i=0;i<n;i++) pieces.push(make('R'+i,'R',n+1+i));
+    moves=0; history=[]; solved=false; cursor=n; clearHint();
+    board.classList.add('no-anim'); layout(null);
+    requestAnimationFrame(()=>board.classList.remove('no-anim'));
+    nValEl.textContent=n; targetCountEl.textContent=minMoves(n);
+    updateHUD(); setStatus('','點一顆能動的棋子,讓它走或跳進空格。'); renderRecords();
+  }
+  function occupancy(){const o=new Array(count).fill(null); pieces.forEach(p=>o[p.cell]=p); return o;}
+  function targetCell(i,occ){
+    const pc=occ[i]; if(!pc) return -1;
+    if(pc.color==='L'){
+      if(i+1<count&&!occ[i+1]) return i+1;
+      if(i+2<count&&occ[i+1]&&occ[i+1].color==='R'&&!occ[i+2]) return i+2;
+    }else{
+      if(i-1>=0&&!occ[i-1]) return i-1;
+      if(i-2>=0&&occ[i-1]&&occ[i-1].color==='L'&&!occ[i-2]) return i-2;
+    }
+    return -1;
+  }
+  function doMove(fromCell){
+    if(solved) return;
+    const occ=occupancy(); const pc=occ[fromCell]; if(!pc) return;
+    const t=targetCell(fromCell,occ); if(t<0) return;
+    history.push(pieces.map(p=>p.cell));
+    const jump=Math.abs(t-fromCell)===2; pc.cell=t; cursor=t; moves++;
+    clearHint(); layout(jump?pc.id:null); updateHUD(); evaluate();
+  }
+  function undo(){
+    if(!history.length||solved) return;
+    const snap=history.pop(); pieces.forEach((p,i)=>p.cell=snap[i]);
+    moves=Math.max(0,moves-1); clearHint(); layout(null); updateHUD(); setStatus('','已復原一步。');
+  }
+  function evaluate(){
+    const occ=occupancy();
+    if(isSolved(occ)){
+      solved=true; if(best[n]===undefined||moves<best[n]) best[n]=moves;
+      const opt=minMoves(n);
+      setStatus('win',moves===opt?`完成交換,剛好 ${moves} 步 — 這就是理論最少步數!`
+        :`完成交換!你用了 ${moves} 步(理論最少 ${opt} 步)。`);
+      renderRecords(); layout(null); return;
+    }
+    if(!anyMovable(occ)) setStatus('stuck','卡住了:沒有合法走法。按「復原」退一步,或重新開始。');
+    else setStatus('','換下一步。');
+  }
+  function isSolved(occ){
+    for(let i=0;i<n;i++) if(!occ[i]||occ[i].color!=='R') return false;
+    if(occ[n]) return false;
+    for(let i=n+1;i<count;i++) if(!occ[i]||occ[i].color!=='L') return false;
+    return true;
+  }
+  function anyMovable(occ){for(let i=0;i<count;i++) if(occ[i]&&targetCell(i,occ)>=0) return true; return false;}
+  function layout(jumpId){
+    const occ=occupancy(); const mov=new Set();
+    for(let i=0;i<count;i++) if(occ[i]&&targetCell(i,occ)>=0) mov.add(i);
+    pieces.forEach(p=>{
+      p.el.style.transform=`translate(${cx(p.cell)}px, ${CY}px)`;
+      p.el.classList.toggle('movable',!solved&&mov.has(p.cell));
+      if(p.id===jumpId){p.hopEl.classList.remove('jumping');void p.hopEl.offsetWidth;p.hopEl.classList.add('jumping');}
+    });
+    wells.forEach((w,i)=>w.classList.toggle('is-empty',!occ[i]));
+    moveCursor();
+  }
+  function moveCursor(){ if(cursorRect) cursorRect.style.transform=`translateX(${cx(cursor)}px)`; }
+  function updateHUD(){ moveCountEl.textContent=moves; undoBtn.disabled=!history.length||solved; hintBtn.disabled=solved; }
+  function setStatus(k,t){ statusEl.className='status'+(k?' '+k:''); statusText.textContent=t; }
+
+  function enc(a){return a.map(c=>c||'.').join('');}
+  function successors(a){
+    const res=[];
+    for(let i=0;i<a.length;i++){const c=a[i];
+      if(c==='L'){
+        if(i+1<a.length&&!a[i+1]){const b=a.slice();b[i+1]='L';b[i]=null;res.push([b,i]);}
+        else if(i+2<a.length&&a[i+1]==='R'&&!a[i+2]){const b=a.slice();b[i+2]='L';b[i]=null;res.push([b,i]);}
+      }else if(c==='R'){
+        if(i-1>=0&&!a[i-1]){const b=a.slice();b[i-1]='R';b[i]=null;res.push([b,i]);}
+        else if(i-2>=0&&a[i-1]==='L'&&!a[i-2]){const b=a.slice();b[i-2]='R';b[i]=null;res.push([b,i]);}
+      }}
+    return res;
+  }
+  function goalArr(){const g=new Array(count).fill(null);for(let i=0;i<n;i++)g[i]='R';for(let i=n+1;i<count;i++)g[i]='L';return g;}
+  function solveFirstMove(){
+    const occ=occupancy(); const start=occ.map(p=>p?p.color:null); const goal=enc(goalArr());
+    if(enc(start)===goal) return null;
+    const prev=new Map(); prev.set(enc(start),null); const q=[start]; let h=0;
+    while(h<q.length){const cur=q[h++]; const ck=enc(cur);
+      if(ck===goal){let s=ck,first=null;while(prev.get(s)!==null){const[ps,fi]=prev.get(s);first=fi;s=enc(ps);}return first;}
+      for(const[b,fi]of successors(cur)){const bk=enc(b);if(!prev.has(bk)){prev.set(bk,[cur,fi]);q.push(b);}}}
+    return undefined;
+  }
+  function clearHint(){ if(hintPiece){hintPiece.el.classList.remove('hintpick');hintPiece=null;} }
+  function showHint(){
+    if(solved) return; clearHint();
+    const from=solveFirstMove();
+    if(from===undefined){setStatus('stuck','這個局面已經無法完成了。請「復原」退一步或重新開始。');return;}
+    if(from===null) return;
+    const occ=occupancy(); hintPiece=occ[from];
+    if(hintPiece){hintPiece.el.classList.add('hintpick');cursor=from;moveCursor();setStatus('hint','提示:移動這顆發亮的棋子。');}
+  }
+  function renderRecords(){
+    let html='';
+    for(let k=Hmin;k<=Hmax;k++){const b=best[k];
+      html+=`<tr class="${k===n?'here':''}"><td>${k}</td><td>${minMoves(k)}</td>`
+        +`<td class="${b!==undefined?'best-yes':'best-no'}">${b!==undefined?b:'—'}</td></tr>`;}
+    recordBody.innerHTML=html;
+  }
+  $('[data-el=nMinus]').addEventListener('click',()=>{if(n>Hmin){n--;buildBoard();}});
+  $('[data-el=nPlus]').addEventListener('click',()=>{if(n<Hmax){n++;buildBoard();}});
+  $('[data-el=reset]').addEventListener('click',buildBoard);
+  undoBtn.addEventListener('click',undo);
+  hintBtn.addEventListener('click',showHint);
+  $('[data-el=revealBtn]').addEventListener('click',e=>{
+    const r=$('[data-el=reveal]'); r.classList.toggle('show');
+    e.target.textContent=r.classList.contains('show')?'收起規律':'看看規律 →';
+  });
+  board.addEventListener('focus',()=>board.classList.add('kb'));
+  board.addEventListener('blur',()=>board.classList.remove('kb'));
+  board.addEventListener('keydown',e=>{
+    if(e.key==='ArrowLeft'){cursor=Math.max(0,cursor-1);moveCursor();board.classList.add('kb');e.preventDefault();}
+    else if(e.key==='ArrowRight'){cursor=Math.min(count-1,cursor+1);moveCursor();board.classList.add('kb');e.preventDefault();}
+    else if(e.key==='Enter'||e.key===' '){doMove(cursor);e.preventDefault();}
+  });
+  buildBoard();
+})();
+
+/* ============================================================
+   平面版（兩個 3×3 相接,四方向,同色可跳,不能斜走）
+============================================================ */
+(function(){
+  const root=document.getElementById('game-planar');
+  const $=s=>root.querySelector(s);
+  const P=70, OX=48, OY=40, WELL=58, R=25;
+  const RC=[[0,0],[0,1],[0,2],[1,0],[1,1],[1,2],[2,0],[2,1],[2,2],
+            [2,3],[2,4],[3,2],[3,3],[3,4],[4,2],[4,3],[4,4]];
+  const N=RC.length, A_CELLS=[0,1,2,3,4,5,6,7], SHARED=8, B_CELLS=[9,10,11,12,13,14,15,16];
+  const idxAt=new Map(); RC.forEach((p,i)=>idxAt.set(p[0]*5+p[1],i));
+  const cellAt=(r,c)=>{const k=idxAt.get(r*5+c);return k===undefined?-1:k;};
+  const cx=i=>OX+RC[i][1]*P, cy=i=>OY+RC[i][0]*P;
+  const DIRS=[[-1,0],[1,0],[0,-1],[0,1]];
+  const board=$('[data-el=board]'), moveCountEl=$('[data-el=moveCount]'),
+        statusEl=$('[data-el=status]'), statusText=$('[data-el=statusText]'),
+        undoBtn=$('[data-el=undo]'), hintBtn=$('[data-el=hint]');
+  let pieces=[], wells=[], cursorRect=null, cursor=SHARED, moves=0, history=[], solved=false, best=null, distMap=null, hintPiece=null;
+
+  function occNow(){const o=new Array(N).fill(null);pieces.forEach(p=>o[p.cell]=p.color);return o;}
+  function genMoves(occ){
+    const e=occ.indexOf(null); const [er,ec]=RC[e]; const res=[];
+    for(const [dr,dc] of DIRS){
+      const a=cellAt(er+dr,ec+dc);
+      if(a>=0&&occ[a]){res.push({from:a,to:e,jump:false});}
+      const f=cellAt(er+2*dr,ec+2*dc);
+      if(a>=0&&f>=0&&occ[a]&&occ[f]){res.push({from:f,to:e,jump:true});}
+    }
+    return res;
+  }
+  const enc=occ=>occ.map(x=>x||'.').join('');
+  function goalOcc(){const o=new Array(N).fill(null);A_CELLS.forEach(i=>o[i]='B');B_CELLS.forEach(i=>o[i]='A');return o;}
+
+  function buildBoard(){
+    board.innerHTML='';
+    const W=OX+4*P+OX, H=OY+4*P+OY-8;
+    const svg=document.createElementNS(SVGNS,'svg'); svg.setAttribute('viewBox',`0 0 ${W} ${H}`); board.appendChild(svg);
+    const region=cells=>{
+      let minR=9,minC=9,maxR=-1,maxC=-1;
+      cells.forEach(i=>{const[r,c]=RC[i];minR=Math.min(minR,r);maxR=Math.max(maxR,r);minC=Math.min(minC,c);maxC=Math.max(maxC,c);});
+      const rect=document.createElementNS(SVGNS,'rect'); rect.setAttribute('class','region');
+      rect.setAttribute('x',OX+minC*P-36); rect.setAttribute('y',OY+minR*P-36);
+      rect.setAttribute('width',(maxC-minC)*P+72); rect.setAttribute('height',(maxR-minR)*P+72);
+      rect.setAttribute('rx',20); svg.appendChild(rect);
+    };
+    region([0,1,2,3,4,5,6,7,8]); region([8,9,10,11,12,13,14,15,16]);
+    wells=[];
+    const wg=document.createElementNS(SVGNS,'g'); svg.appendChild(wg);
+    for(let i=0;i<N;i++){
+      const r=document.createElementNS(SVGNS,'rect'); r.setAttribute('class','well');
+      r.setAttribute('x',cx(i)-WELL/2); r.setAttribute('y',cy(i)-WELL/2);
+      r.setAttribute('width',WELL); r.setAttribute('height',WELL); r.setAttribute('rx',14);
+      r.addEventListener('click',()=>{cursor=i;tryMove(i);}); wg.appendChild(r); wells.push(r);
+    }
+    cursorRect=document.createElementNS(SVGNS,'rect'); cursorRect.setAttribute('class','cursor');
+    cursorRect.setAttribute('width',WELL+8); cursorRect.setAttribute('height',WELL+8); cursorRect.setAttribute('rx',18);
+    cursorRect.setAttribute('x',-(WELL+8)/2); cursorRect.setAttribute('y',-(WELL+8)/2); svg.appendChild(cursorRect);
+    pieces=[];
+    const pg=document.createElementNS(SVGNS,'g'); svg.appendChild(pg);
+    const make=(id,color,cell)=>{
+      const g=document.createElementNS(SVGNS,'g'); g.setAttribute('class','piece'); g.setAttribute('data-color',color);
+      const hop=document.createElementNS(SVGNS,'g'); hop.setAttribute('class','hop');
+      const ring=document.createElementNS(SVGNS,'circle'); ring.setAttribute('class','ring'); ring.setAttribute('r',R+7);
+      const disc=document.createElementNS(SVGNS,'circle'); disc.setAttribute('class','disc'); disc.setAttribute('r',R);
+      const gl=document.createElementNS(SVGNS,'ellipse'); gl.setAttribute('class','gloss');
+      gl.setAttribute('cx',0); gl.setAttribute('cy',-8); gl.setAttribute('rx',12); gl.setAttribute('ry',6);
+      hop.append(ring,disc,gl); g.appendChild(hop);
+      const p={id,color,cell,el:g,hopEl:hop};
+      g.addEventListener('click',()=>{cursor=p.cell;tryMove(p.cell);}); pg.appendChild(g); return p;
+    };
+    A_CELLS.forEach((cell,k)=>pieces.push(make('A'+k,'A',cell)));
+    B_CELLS.forEach((cell,k)=>pieces.push(make('B'+k,'B',cell)));
+    moves=0; history=[]; solved=false; cursor=SHARED; clearHint();
+    board.classList.add('no-anim'); layout(null);
+    requestAnimationFrame(()=>board.classList.remove('no-anim'));
+    updateHUD(); setStatus('','點一顆會發亮的棋子,讓它走或跳進空格。');
+  }
+  function tryMove(cell){
+    if(solved) return;
+    const occ=occNow(); const mv=genMoves(occ).find(m=>m.from===cell); if(!mv) return;
+    history.push(pieces.map(p=>p.cell));
+    const piece=pieces.find(p=>p.cell===cell); piece.cell=mv.to; cursor=mv.to; moves++;
+    clearHint(); layout(mv.jump?piece.id:null); updateHUD(); evaluate();
+  }
+  function undo(){
+    if(!history.length||solved) return;
+    const snap=history.pop(); pieces.forEach((p,i)=>p.cell=snap[i]);
+    moves=Math.max(0,moves-1); clearHint(); layout(null); updateHUD(); setStatus('','已復原一步。'+remainText());
+  }
+  function evaluate(){
+    const occ=occNow(); const goal=enc(goalOcc());
+    if(enc(occ)===goal){
+      solved=true; if(best===null||moves<best) best=moves;
+      setStatus('win',moves===46?`完成交換,剛好 46 步 —— 這就是最佳解!`
+        :`完成交換!你用了 ${moves} 步(最佳解 46 步${best!==null?`,你的紀錄 ${best}`:''})。`);
+      layout(null); return;
+    }
+    setStatus('','換下一步。'+remainText());
+  }
+  function remainText(){ if(!distMap) return ''; const d=distMap.get(enc(occNow())); return d===undefined?'':` 最佳解還需 ${d} 步。`; }
+  function layout(jumpId){
+    const occ=occNow(); const mov=new Set(genMoves(occ).map(m=>m.from));
+    pieces.forEach(p=>{
+      p.el.style.transform=`translate(${cx(p.cell)}px,${cy(p.cell)}px)`;
+      p.el.classList.toggle('movable',!solved&&mov.has(p.cell));
+      if(p.id===jumpId){p.hopEl.classList.remove('jumping');void p.hopEl.offsetWidth;p.hopEl.classList.add('jumping');}
+    });
+    wells.forEach((w,i)=>w.classList.toggle('is-empty',!occ[i])); moveCursor();
+  }
+  function moveCursor(){ if(cursorRect) cursorRect.style.transform=`translate(${cx(cursor)}px,${cy(cursor)}px)`; }
+  function updateHUD(){ moveCountEl.textContent=moves; undoBtn.disabled=!history.length||solved; hintBtn.disabled=solved; }
+  function setStatus(k,t){ statusEl.className='status'+(k?' '+k:''); statusText.textContent=t; }
+
+  function ensureDistMap(){
+    if(distMap) return;
+    distMap=new Map(); const g=goalOcc(); distMap.set(enc(g),0); const q=[g]; let h=0;
+    while(h<q.length){const cur=q[h++]; const d=distMap.get(enc(cur));
+      for(const mv of genMoves(cur)){const b=cur.slice();b[mv.to]=b[mv.from];b[mv.from]=null;
+        const bk=enc(b);if(!distMap.has(bk)){distMap.set(bk,d+1);q.push(b);}}}
+  }
+  function clearHint(){ if(hintPiece){hintPiece.el.classList.remove('hintpick');hintPiece=null;} }
+  function runHint(){
+    const occ=occNow(); const here=distMap.get(enc(occ));
+    if(here===undefined||here===0){setStatus('','已經完成了。');return;}
+    let pick=null;
+    for(const mv of genMoves(occ)){const b=occ.slice();b[mv.to]=b[mv.from];b[mv.from]=null;
+      if(distMap.get(enc(b))===here-1){pick=mv;break;}}
+    if(pick){clearHint();hintPiece=pieces.find(p=>p.cell===pick.from);hintPiece.el.classList.add('hintpick');
+      cursor=pick.from;moveCursor();setStatus('hint',`提示:移動這顆發亮的棋子。最佳解還需 ${here} 步。`);}
+  }
+  hintBtn.addEventListener('click',()=>{
+    if(solved) return;
+    if(!distMap){setStatus('hint','分析最佳解中…');hintBtn.disabled=true;
+      setTimeout(()=>{ensureDistMap();hintBtn.disabled=false;runHint();},20);}
+    else runHint();
+  });
+  $('[data-el=reset]').addEventListener('click',buildBoard);
+  undoBtn.addEventListener('click',undo);
+  board.addEventListener('focus',()=>board.classList.add('kb'));
+  board.addEventListener('blur',()=>board.classList.remove('kb'));
+  board.addEventListener('keydown',e=>{
+    let dr=0,dc=0;
+    if(e.key==='ArrowUp')dr=-1; else if(e.key==='ArrowDown')dr=1;
+    else if(e.key==='ArrowLeft')dc=-1; else if(e.key==='ArrowRight')dc=1;
+    else if(e.key==='Enter'||e.key===' '){tryMove(cursor);e.preventDefault();return;}
+    else return;
+    const [r,c]=RC[cursor]; const t=cellAt(r+dr,c+dc);
+    if(t>=0){cursor=t;moveCursor();board.classList.add('kb');} e.preventDefault();
+  });
+  buildBoard();
+})();
+
+/* ============ 分頁切換 ============ */
+(function(){
+  const tabs=document.querySelectorAll('.tab');
+  const games={line:document.getElementById('game-line'),planar:document.getElementById('game-planar')};
+  tabs.forEach(t=>t.addEventListener('click',()=>{
+    tabs.forEach(x=>x.classList.toggle('active',x===t));
+    const k=t.dataset.tab;
+    Object.entries(games).forEach(([key,el])=>el.classList.toggle('active',key===k));
+  }));
+})();
+</script>
+</body>
+</html>

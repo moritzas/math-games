@@ -1,0 +1,839 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>方塊鋪滿 · 8×8</title>
+<style>
+  :root{
+    --ink:#141414;
+    --line:#141414;
+    --paper:#f3f0e7;
+    --panel:#ffffff;
+    --frame:#141414;
+    --grid:#d8d3c4;
+    --good:#2f9e44;
+    --bad:#e03131;
+    --cell:44px;      /* set by JS */
+    --tray:30px;      /* set by JS */
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Trebuchet MS","Helvetica Neue",Helvetica,"PingFang TC","Noto Sans TC",system-ui,sans-serif;
+    display:flex; justify-content:center;
+    padding:16px 12px 40px;
+    overscroll-behavior:none;
+  }
+  .app{width:100%; max-width:600px;}
+
+  header{margin:0 2px 12px;}
+  h1{
+    font-size:clamp(24px,7vw,40px);
+    letter-spacing:.14em; text-transform:uppercase;
+    margin:0; font-weight:800; line-height:1;
+    display:flex; align-items:baseline; gap:.35em; flex-wrap:wrap;
+  }
+  h1 .n{
+    font-size:.72em; letter-spacing:.05em;
+    background:var(--ink); color:var(--paper);
+    padding:.08em .3em;
+  }
+  .sub{margin:8px 2px 0; color:#5a5648; font-size:14px; line-height:1.5;}
+
+  .hud{
+    display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+    margin:14px 0 12px;
+  }
+  .stat{
+    font-size:13px; letter-spacing:.03em; color:#5a5648;
+    background:var(--panel); border:2px solid var(--ink);
+    padding:6px 10px;
+  }
+  .stat b{font-size:16px; color:var(--ink); font-variant-numeric:tabular-nums;}
+  .spacer{flex:1 1 auto;}
+  button{
+    font-family:inherit; font-size:13px; font-weight:700;
+    letter-spacing:.04em;
+    border:2px solid var(--ink); background:var(--panel); color:var(--ink);
+    padding:8px 12px; cursor:pointer;
+    transition:transform .05s ease, background .12s ease, color .12s ease;
+  }
+  button:hover{background:var(--ink); color:var(--paper);}
+  button:active{transform:translateY(1px);}
+  button.accent{background:#ffd400;}
+  button.accent:hover{background:var(--ink); color:#ffd400;}
+  button:focus-visible{outline:3px solid #1652ce; outline-offset:2px;}
+
+  /* Mode / level selector */
+  .modebar{
+    display:flex; gap:6px; flex-wrap:nowrap; align-items:stretch;
+    margin:6px 0 10px;
+  }
+  .modebtn{
+    flex:1 1 0; min-width:0; padding:6px 4px; text-align:center;
+    background:var(--panel); line-height:1.1;
+  }
+  .modebtn.star{
+    font-size:12px; letter-spacing:0;
+    white-space:normal; word-break:break-all; color:#c99a00;
+  }
+  .modebtn.active{background:var(--ink); color:var(--paper);}
+  .modebtn.star.active{color:#ffd400;}
+  .levelmenu{
+    display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+    background:var(--panel); border:2px dashed var(--ink);
+    padding:10px; margin:0 0 10px;
+  }
+  .levelmenu.hidden{display:none;}
+  .lvlbtn{min-width:42px; padding:8px 10px;}
+  .lvlbtn.active{background:var(--ink); color:var(--paper);}
+  .menuhint{font-size:13px; color:#5a5648; padding:2px 4px;}
+
+  /* Board */
+  .board-wrap{
+    display:flex; justify-content:center;
+    background:var(--frame);
+    padding:10px; width:max-content; margin:0 auto;
+    box-shadow:6px 6px 0 rgba(20,20,20,.16);
+  }
+  .board{
+    position:relative;
+    width:calc(var(--cell)*8);
+    height:calc(var(--cell)*8);
+    background:var(--panel);
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size:var(--cell) var(--cell);
+    touch-action:none;
+  }
+  .ghost{
+    position:absolute; z-index:5; pointer-events:none;
+    border:3px solid var(--good);
+    background:rgba(47,158,68,.18);
+    display:none;
+  }
+  .ghost.bad{border-color:var(--bad); background:rgba(224,49,49,.16);}
+
+  /* Pieces */
+  .tray-label{margin:22px 2px 10px; font-size:13px; color:#5a5648; letter-spacing:.02em;}
+  .tray{
+    display:flex; flex-wrap:wrap; gap:12px 12px; align-content:flex-start;
+    min-height:var(--tray);
+  }
+  .piece{
+    position:relative;
+    border:2px solid var(--ink);
+    display:flex; align-items:center; justify-content:center;
+    font-weight:800; font-size:12px; letter-spacing:.04em;
+    cursor:grab; touch-action:none; user-select:none;
+    background-clip:padding-box;
+  }
+  .piece.dragging{cursor:grabbing; z-index:9999; opacity:.92; box-shadow:4px 6px 0 rgba(0,0,0,.25);}
+  .piece.placed{cursor:grab;}
+  .piece.locked{cursor:default; box-shadow:inset 0 0 0 3px rgba(255,255,255,.22);}
+  .piece.selected{outline:3px dashed #1652ce; outline-offset:3px;}
+  .piece .tag{
+    padding:1px 4px; border-radius:2px;
+    background:rgba(255,255,255,.0);
+  }
+
+  /* Win overlay */
+  .win{
+    position:fixed; inset:0; background:rgba(20,20,20,.72);
+    display:flex; align-items:center; justify-content:center; padding:24px;
+    z-index:10000;
+  }
+  .win.hidden{display:none;}
+  .card{
+    background:var(--paper); border:3px solid var(--ink);
+    box-shadow:10px 10px 0 rgba(0,0,0,.3);
+    padding:28px 26px; max-width:340px; text-align:center;
+  }
+  .card h2{margin:0 0 6px; font-size:26px; letter-spacing:.08em; text-transform:uppercase;}
+  .card .swatches{display:flex; gap:6px; justify-content:center; margin:14px 0;}
+  .card .swatches span{width:22px; height:22px; border:2px solid var(--ink);}
+  .card p{margin:6px 0 18px; color:#5a5648; font-size:15px;}
+  .card b{font-variant-numeric:tabular-nums;}
+
+  @media (max-width:480px){
+    .hud{gap:5px;} 
+    .hud button{padding:7px 8px; font-size:12px;}
+    .stat{padding:6px 8px; font-size:12px;}
+    .sub{font-size:13px;}
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>方塊鋪滿 <span class="n">8×8</span></h1>
+      <p class="sub">雙擊或選取後按 R 也可旋轉。</p>
+    </header>
+
+    <div class="modebar" id="modebar">
+      <button data-mode="free" class="modebtn">自由</button>
+      <button data-stars="1" class="modebtn star">★</button>
+      <button data-stars="2" class="modebtn star">★★</button>
+      <button data-stars="3" class="modebtn star">★★★</button>
+      <button data-stars="4" class="modebtn star">★★★★</button>
+      <button data-stars="5" class="modebtn star">★★★★★</button>
+    </div>
+    <div class="levelmenu hidden" id="levelmenu"></div>
+
+    <div class="hud">
+      <div class="stat">已放 <b id="count">0</b>/11</div>
+      <div class="spacer"></div>
+      <button id="rotateBtn" class="accent">旋轉 ↻</button>
+      <button id="solveBtn">顯示解答</button>
+      <button id="resetBtn">重來</button>
+    </div>
+
+    <div class="board-wrap">
+      <div id="board" class="board"><div id="ghost" class="ghost"></div></div>
+    </div>
+
+    <div class="tray-label">方塊托盤</div>
+    <div id="tray" class="tray"></div>
+  </div>
+
+  <div id="win" class="win hidden">
+    <div class="card">
+      <h2>拼好了！</h2>
+      <div class="swatches">
+        <span style="background:#ffd400"></span>
+        <span style="background:#e11d28"></span>
+        <span style="background:#1652ce"></span>
+        <span style="background:#141414"></span>
+        <span style="background:#f5f2e9"></span>
+      </div>
+      <p>用時 <b id="winTime">0:00</b>,64 格全部鋪滿。</p>
+      <button id="againBtn" class="accent">再玩一次</button>
+    </div>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+  const N = 8;
+
+  // Piece set: w = columns, h = rows (base orientation). Colours echo the physical De Stijl set.
+  const DEFS = [
+    {id:'a', w:4, h:3, fill:'#ffd400', ink:'#141414'}, // 4×3
+    {id:'b', w:3, h:3, fill:'#1652ce', ink:'#ffffff'}, // 3×3
+    {id:'c', w:5, h:2, fill:'#e11d28', ink:'#ffffff'}, // 2×5
+    {id:'d', w:4, h:2, fill:'#141414', ink:'#ffffff'}, // 2×4
+    {id:'e', w:3, h:2, fill:'#ffd400', ink:'#141414'}, // 2×3
+    {id:'f', w:2, h:2, fill:'#e11d28', ink:'#ffffff'}, // 2×2
+    {id:'g', w:5, h:1, fill:'#1652ce', ink:'#ffffff'}, // 1×5
+    {id:'h', w:4, h:1, fill:'#f5f2e9', ink:'#141414'}, // 1×4
+    {id:'i', w:3, h:1, fill:'#141414', ink:'#ffffff'}, // 1×3
+    {id:'j', w:2, h:1, fill:'#f5f2e9', ink:'#141414'}, // 1×2
+    {id:'k', w:1, h:1, fill:'#e11d28', ink:'#ffffff'}  // 1×1
+  ];
+
+  // The three "given" pieces (1×3, 1×2, 1×1) are always black.
+  // The other eight are coloured red / yellow / blue / white — two of each, randomly assigned.
+  const BLACK = {fill:'#141414', ink:'#ffffff'};
+  const BLACK_IDS = ['i','j','k'];
+  const PALETTE = [
+    {fill:'#e11d28', ink:'#ffffff'}, // red
+    {fill:'#ffd400', ink:'#141414'}, // yellow
+    {fill:'#1652ce', ink:'#ffffff'}, // blue
+    {fill:'#f5f2e9', ink:'#141414'}  // white
+  ];
+
+  // ---- Challenge levels (from the puzzle booklet) ----
+  // Each level pre-places three black pieces; the player fills the rest with the other eight.
+  // Coordinates are 1-based (row, col) of the piece's top-left cell. H = 橫(→), V = 直(↓).
+  const LEVELS = [
+    {id:1,  stars:1, k:[7,8], j:[4,7,'H'], i:[3,3,'V']},
+    {id:2,  stars:1, k:[7,6], j:[2,4,'H'], i:[6,6,'H']},
+    {id:3,  stars:1, k:[3,5], j:[3,6,'V'], i:[6,6,'H']},
+    {id:4,  stars:1, k:[8,7], j:[1,1,'H'], i:[6,1,'H']},
+    {id:5,  stars:1, k:[2,5], j:[5,6,'V'], i:[7,4,'H']},
+    {id:6,  stars:1, k:[8,2], j:[7,2,'H'], i:[3,1,'H']},
+    {id:7,  stars:1, k:[8,8], j:[5,6,'H'], i:[3,5,'H']},
+    {id:8,  stars:1, k:[8,8], j:[6,2,'H'], i:[3,2,'V']},
+    {id:9,  stars:2, k:[6,4], j:[4,3,'V'], i:[2,5,'V']},
+    {id:10, stars:2, k:[7,8], j:[5,4,'V'], i:[6,1,'H']},
+    {id:11, stars:2, k:[1,8], j:[3,7,'H'], i:[6,3,'H']},
+    {id:12, stars:2, k:[8,1], j:[6,1,'H'], i:[1,4,'V']},
+    {id:13, stars:2, k:[3,7], j:[8,2,'H'], i:[8,6,'H']},
+    {id:14, stars:2, k:[2,4], j:[7,3,'H'], i:[8,6,'H']},
+    {id:15, stars:2, k:[5,3], j:[3,7,'H'], i:[1,6,'H']},
+    {id:16, stars:2, k:[7,4], j:[2,5,'V'], i:[1,8,'V']},
+    {id:17, stars:2, k:[5,8], j:[5,5,'H'], i:[8,6,'H']},
+    {id:18, stars:2, k:[5,3], j:[7,4,'H'], i:[2,8,'V']},
+    {id:19, stars:2, k:[3,5], j:[2,4,'V'], i:[7,6,'H']},
+    {id:20, stars:2, k:[1,1], j:[4,5,'H'], i:[1,3,'H']},
+    {id:21, stars:2, k:[4,8], j:[4,5,'H'], i:[1,3,'H']},
+    {id:22, stars:2, k:[3,2], j:[5,6,'H'], i:[1,3,'H']},
+    {id:23, stars:3, k:[6,4], j:[4,3,'V'], i:[6,5,'H']},
+    {id:24, stars:3, k:[7,6], j:[6,5,'V'], i:[3,6,'H']},
+    {id:25, stars:3, k:[5,3], j:[1,6,'H'], i:[1,1,'H']},
+    {id:26, stars:3, k:[7,4], j:[3,5,'V'], i:[1,8,'V']},
+    {id:27, stars:3, k:[1,6], j:[5,3,'H'], i:[2,1,'V']},
+    {id:28, stars:3, k:[6,1], j:[1,1,'V'], i:[1,4,'V']},
+    {id:29, stars:3, k:[5,4], j:[7,8,'V'], i:[6,2,'H']},
+    {id:30, stars:3, k:[6,3], j:[8,4,'H'], i:[5,5,'H']},
+    {id:31, stars:3, k:[4,5], j:[6,8,'V'], i:[5,3,'H']},
+    {id:32, stars:3, k:[4,3], j:[8,3,'H'], i:[1,4,'V']},
+    {id:33, stars:3, k:[4,8], j:[5,3,'H'], i:[6,4,'H']},
+    {id:34, stars:3, k:[6,3], j:[6,8,'V'], i:[4,4,'H']},
+    {id:35, stars:3, k:[5,6], j:[6,1,'H'], i:[3,6,'H']},
+    {id:36, stars:3, k:[6,4], j:[1,3,'H'], i:[4,3,'H']},
+    {id:37, stars:3, k:[1,6], j:[3,1,'H'], i:[4,1,'H']},
+    {id:38, stars:3, k:[7,4], j:[4,1,'V'], i:[6,6,'H']},
+    {id:39, stars:3, k:[6,8], j:[1,3,'H'], i:[4,3,'H']},
+    {id:40, stars:3, k:[5,5], j:[4,3,'H'], i:[6,5,'H']},
+    {id:41, stars:3, k:[2,5], j:[4,7,'H'], i:[6,5,'V']},
+    {id:42, stars:3, k:[5,1], j:[7,3,'V'], i:[1,4,'V']},
+    {id:43, stars:3, k:[4,4], j:[7,4,'H'], i:[7,6,'H']},
+    {id:44, stars:3, k:[3,3], j:[7,4,'H'], i:[7,6,'H']},
+    {id:45, stars:4, k:[7,5], j:[3,3,'V'], i:[1,8,'V']},
+    {id:46, stars:4, k:[3,3], j:[5,1,'H'], i:[4,3,'H']},
+    {id:47, stars:4, k:[5,4], j:[3,1,'V'], i:[6,6,'H']},
+    {id:48, stars:4, k:[5,2], j:[5,5,'H'], i:[3,1,'V']},
+    {id:49, stars:4, k:[5,4], j:[4,7,'H'], i:[8,6,'H']},
+    {id:50, stars:4, k:[5,2], j:[6,5,'H'], i:[3,1,'V']},
+    {id:51, stars:4, k:[8,1], j:[1,5,'H'], i:[5,6,'H']},
+    {id:52, stars:4, k:[6,4], j:[6,5,'H'], i:[3,8,'V']},
+    {id:53, stars:4, k:[5,3], j:[8,5,'H'], i:[1,4,'H']},
+    {id:54, stars:4, k:[5,4], j:[4,7,'H'], i:[3,1,'V']},
+    {id:55, stars:4, k:[6,5], j:[5,3,'H'], i:[6,4,'V']},
+    {id:56, stars:4, k:[5,6], j:[3,8,'V'], i:[4,1,'H']},
+    {id:57, stars:4, k:[4,7], j:[1,5,'H'], i:[4,8,'V']},
+    {id:58, stars:4, k:[4,3], j:[8,5,'H'], i:[3,8,'V']},
+    {id:59, stars:4, k:[5,7], j:[7,4,'V'], i:[3,8,'V']},
+    {id:60, stars:4, k:[3,3], j:[5,5,'V'], i:[6,8,'V']},
+    {id:61, stars:4, k:[3,4], j:[7,3,'V'], i:[4,6,'V']},
+    {id:62, stars:4, k:[6,3], j:[7,5,'V'], i:[1,4,'V']},
+    {id:63, stars:4, k:[6,4], j:[5,3,'H'], i:[4,6,'H']},
+    {id:64, stars:4, k:[3,4], j:[4,3,'V'], i:[6,5,'V']},
+    {id:65, stars:4, k:[4,7], j:[5,4,'V'], i:[5,5,'H']},
+    {id:66, stars:4, k:[5,4], j:[3,1,'V'], i:[4,8,'V']},
+    {id:67, stars:5, k:[6,6], j:[1,4,'V'], i:[8,1,'H']},
+    {id:68, stars:5, k:[3,5], j:[6,7,'H'], i:[8,3,'H']},
+    {id:69, stars:5, k:[4,4], j:[6,7,'H'], i:[8,3,'H']},
+    {id:70, stars:5, k:[4,6], j:[6,1,'H'], i:[8,6,'H']},
+    {id:71, stars:5, k:[5,6], j:[3,3,'H'], i:[8,6,'H']},
+    {id:72, stars:5, k:[5,4], j:[5,8,'V'], i:[8,1,'H']},
+    {id:73, stars:5, k:[6,5], j:[6,3,'H'], i:[6,8,'V']},
+    {id:74, stars:5, k:[6,7], j:[4,5,'H'], i:[6,8,'V']},
+    {id:75, stars:5, k:[7,3], j:[4,8,'V'], i:[8,1,'H']},
+    {id:76, stars:5, k:[6,3], j:[3,1,'H'], i:[3,8,'V']},
+    {id:77, stars:5, k:[5,4], j:[7,5,'V'], i:[8,6,'H']},
+    {id:78, stars:5, k:[4,4], j:[3,5,'V'], i:[8,3,'H']},
+    {id:79, stars:5, k:[5,6], j:[4,5,'V'], i:[1,3,'H']},
+    {id:80, stars:5, k:[3,5], j:[4,3,'H'], i:[1,1,'V']},
+    {id:81, stars:5, k:[6,3], j:[3,1,'H'], i:[6,8,'V']},
+    {id:82, stars:5, k:[4,6], j:[5,4,'V'], i:[1,3,'H']},
+    {id:83, stars:5, k:[5,4], j:[3,1,'H'], i:[4,8,'V']},
+    {id:84, stars:5, k:[6,3], j:[3,1,'V'], i:[3,2,'H']},
+    {id:85, stars:5, k:[3,3], j:[5,4,'H'], i:[4,6,'H']},
+    {id:86, stars:5, k:[6,5], j:[1,4,'H'], i:[1,6,'V']},
+    {id:87, stars:5, k:[6,6], j:[1,8,'V'], i:[4,1,'H']},
+    {id:88, stars:5, k:[2,6], j:[4,8,'V'], i:[1,6,'H']}
+  ];
+
+  let currentLevel = null;   // null = free play; otherwise {id, stars, given:[{id,r,c,rot}]}
+
+  function buildGiven(raw){
+    return [
+      {id:'k', r:raw.k[0]-1, c:raw.k[1]-1, rot:0},
+      {id:'j', r:raw.j[0]-1, c:raw.j[1]-1, rot: raw.j[2]==='V' ? 1 : 0},
+      {id:'i', r:raw.i[0]-1, c:raw.i[1]-1, rot: raw.i[2]==='V' ? 1 : 0}
+    ];
+  }
+  function assignColors(){
+    const pool = [];
+    PALETTE.forEach(col => { pool.push(col, col); });        // two of each colour → 8
+    for(let i=pool.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
+    const map = {}; let idx = 0;
+    DEFS.forEach(d => { map[d.id] = BLACK_IDS.includes(d.id) ? BLACK : pool[idx++]; });
+    return map;
+  }
+
+  const board = document.getElementById('board');
+  const tray  = document.getElementById('tray');
+  const ghost = document.getElementById('ghost');
+  const countEl = document.getElementById('count');
+  const timerEl = document.getElementById('timer');
+  const winEl = document.getElementById('win');
+  const winTimeEl = document.getElementById('winTime');
+
+  let cell = 44, trayCell = 30;
+  let grid = [];               // grid[r][c] = pieceId | null
+  let pieces = {};             // id -> {def, el, rot, placed, r, c}
+  let selectedId = null;
+  let drag = null;             // active drag state
+  let startTime = null, tickTimer = null;
+
+  function label(def){ return def.h + '×' + def.w > '' ? '' : ''; } // placeholder (unused)
+
+  function dims(p){                     // effective [cols, rows]
+    return p.rot === 0 ? [p.def.w, p.def.h] : [p.def.h, p.def.w];
+  }
+  function baseLabel(def){              // human label matches the paper list: shorter × longer
+    const a = Math.min(def.w, def.h), b = Math.max(def.w, def.h);
+    return a + '×' + b;
+  }
+
+  function computeCells(){
+    const maxW = Math.min(window.innerWidth - 44, 560);
+    cell = Math.max(30, Math.min(Math.floor(maxW / 8), 62));
+    trayCell = Math.round(cell * 0.66);
+    document.documentElement.style.setProperty('--cell', cell + 'px');
+    document.documentElement.style.setProperty('--tray', trayCell + 'px');
+  }
+
+  function makePieces(){
+    // clear any pieces still sitting on the board or tray from a previous round
+    board.querySelectorAll('.piece').forEach(el => el.remove());
+    tray.innerHTML = '';
+    pieces = {};
+    const colorMap = assignColors();
+    DEFS.forEach(def => {
+      const col = colorMap[def.id];
+      const el = document.createElement('div');
+      el.className = 'piece';
+      el.style.background = col.fill;
+      el.style.color = col.ink;
+      el.dataset.id = def.id;
+      const tag = document.createElement('span');
+      tag.className = 'tag';
+      tag.textContent = baseLabel(def);
+      el.appendChild(tag);
+      el.addEventListener('pointerdown', onPointerDown);
+      pieces[def.id] = {def, el, rot:0, placed:false, locked:false, r:null, c:null};
+      tray.appendChild(el);
+      sizeToTray(pieces[def.id]);
+    });
+    // Challenge mode: pre-place and lock the three given (black) pieces.
+    if(currentLevel){
+      currentLevel.given.forEach(g => {
+        const p = pieces[g.id];
+        p.rot = g.rot;
+        sizeToBoard(p);
+        place(p, g.r, g.c);
+        p.locked = true;
+        p.el.classList.add('locked');
+      });
+    }
+  }
+
+  function sizeToTray(p){
+    const [cols, rows] = dims(p);
+    p.el.style.position = 'static';
+    p.el.style.left = p.el.style.top = '';
+    p.el.style.width  = (cols * trayCell) + 'px';
+    p.el.style.height = (rows * trayCell) + 'px';
+  }
+  function sizeToBoard(p){
+    const [cols, rows] = dims(p);
+    p.el.style.width  = (cols * cell) + 'px';
+    p.el.style.height = (rows * cell) + 'px';
+  }
+
+  function newGrid(){
+    grid = [];
+    for(let r=0;r<N;r++){ grid.push(new Array(N).fill(null)); }
+  }
+
+  function fits(p, r, c){
+    const [cols, rows] = dims(p);
+    if(r < 0 || c < 0 || r + rows > N || c + cols > N) return false;
+    for(let rr=r; rr<r+rows; rr++)
+      for(let cc=c; cc<c+cols; cc++)
+        if(grid[rr][cc]) return false;
+    return true;
+  }
+  function occupy(p, val){
+    const [cols, rows] = dims(p);
+    for(let rr=p.r; rr<p.r+rows; rr++)
+      for(let cc=p.c; cc<p.c+cols; cc++)
+        grid[rr][cc] = val;
+  }
+
+  function place(p, r, c){
+    p.r = r; p.c = c; p.placed = true;
+    occupy(p, p.def.id);
+    p.el.classList.add('placed');
+    board.appendChild(p.el);
+    p.el.style.position = 'absolute';
+    p.el.style.left = (c * cell) + 'px';
+    p.el.style.top  = (r * cell) + 'px';
+    sizeToBoard(p);
+    updateStatus();
+  }
+  function toTray(p){
+    if(p.placed){ occupy(p, null); }
+    p.placed = false; p.r = p.c = null;
+    p.el.classList.remove('placed');
+    tray.appendChild(p.el);
+    sizeToTray(p);
+    updateStatus();
+  }
+
+  function select(id){
+    if(selectedId && pieces[selectedId]) pieces[selectedId].el.classList.remove('selected');
+    selectedId = id;
+    if(id && pieces[id]) pieces[id].el.classList.add('selected');
+  }
+
+  function rotate(p, aroundPointer){
+    if(p.locked) return;            // given pieces are fixed
+    if(p.def.w === p.def.h) return; // square: nothing to do
+    if(drag && drag.piece === p){
+      p.rot ^= 1;
+      sizeToBoard(p);
+      moveDragEl(drag.lastX, drag.lastY);
+      updateGhost();
+      return;
+    }
+    if(p.placed){
+      const r = p.r, c = p.c;
+      occupy(p, null);        // clear its current footprint first
+      p.placed = false;       // so a later toTray() won't clear cells a second time
+      p.rot ^= 1;             // flip orientation
+      if(fits(p, r, c)){
+        place(p, r, c);       // fits in place → re-lay it down cleanly
+      } else {
+        p.r = p.c = null;
+        toTray(p);            // no room → pop back to the tray
+      }
+    } else {
+      p.rot ^= 1;
+      sizeToTray(p);
+    }
+  }
+
+  /* ---------- dragging ---------- */
+  function onPointerDown(e){
+    const id = e.currentTarget.dataset.id;
+    const p = pieces[id];
+    if(p.locked) return;                 // given pieces are fixed
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const rect = p.el.getBoundingClientRect();
+    drag = {
+      piece: p, pointerId: e.pointerId,
+      fx: (e.clientX - rect.left) / rect.width,
+      fy: (e.clientY - rect.top) / rect.height,
+      startX: e.clientX, startY: e.clientY,
+      lastX: e.clientX, lastY: e.clientY,
+      moved: false, wasPlaced: p.placed
+    };
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+    e.preventDefault();
+  }
+
+  function beginDrag(){
+    const p = drag.piece;
+    if(p.placed){ occupy(p, null); p.placed = false; }
+    p.el.classList.add('dragging');
+    p.el.style.position = 'fixed';
+    sizeToBoard(p);
+  }
+
+  function moveDragEl(x, y){
+    const p = drag.piece;
+    const w = p.el.offsetWidth, h = p.el.offsetHeight;
+    p.el.style.left = (x - drag.fx * w) + 'px';
+    p.el.style.top  = (y - drag.fy * h) + 'px';
+  }
+
+  function snapTarget(){
+    const p = drag.piece;
+    const brect = board.getBoundingClientRect();
+    const prect = p.el.getBoundingClientRect();
+    const c = Math.round((prect.left - brect.left) / cell);
+    const r = Math.round((prect.top - brect.top) / cell);
+    return {r, c};
+  }
+
+  function updateGhost(){
+    const p = drag.piece;
+    const [cols, rows] = dims(p);
+    const {r, c} = snapTarget();
+    const brect = board.getBoundingClientRect();
+    const prect = p.el.getBoundingClientRect();
+    const inside = prect.left < brect.right && prect.right > brect.left &&
+                   prect.top < brect.bottom && prect.bottom > brect.top;
+    if(!inside){ ghost.style.display = 'none'; drag.valid = false; return; }
+    ghost.style.display = 'block';
+    ghost.style.width  = (cols * cell) + 'px';
+    ghost.style.height = (rows * cell) + 'px';
+    ghost.style.left = (Math.max(0, Math.min(c, N - cols)) * cell) + 'px';
+    ghost.style.top  = (Math.max(0, Math.min(r, N - rows)) * cell) + 'px';
+    const ok = fits(p, r, c);
+    ghost.classList.toggle('bad', !ok);
+    drag.valid = ok; drag.snapR = r; drag.snapC = c;
+  }
+
+  function onPointerMove(e){
+    if(!drag || e.pointerId !== drag.pointerId) return;
+    drag.lastX = e.clientX; drag.lastY = e.clientY;
+    if(!drag.moved){
+      const d = Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY);
+      if(d < 6) return;
+      drag.moved = true;
+      beginDrag();
+    }
+    moveDragEl(e.clientX, e.clientY);
+    updateGhost();
+    e.preventDefault();
+  }
+
+  function onPointerUp(e){
+    if(!drag || e.pointerId !== drag.pointerId) return;
+    window.removeEventListener('pointermove', onPointerMove);
+    window.removeEventListener('pointerup', onPointerUp);
+    window.removeEventListener('pointercancel', onPointerUp);
+    const p = drag.piece;
+    ghost.style.display = 'none';
+
+    if(!drag.moved){
+      handleTap(p);
+      drag = null;
+      return;
+    }
+
+    p.el.classList.remove('dragging');
+    p.el.style.position = '';
+    p.el.style.left = p.el.style.top = '';
+
+    if(drag.valid){ ensureTimer(); place(p, drag.snapR, drag.snapC); }
+    else { toTray(p); }
+    select(null);
+    drag = null;
+  }
+
+  function handleTap(p){
+    if(selectedId === p.def.id){
+      rotate(p);              // tap an already-selected piece to rotate (works on touch)
+    } else {
+      select(p.def.id);
+    }
+  }
+
+  /* ---------- status / timer ---------- */
+  function placedCount(){ return DEFS.filter(d => pieces[d.id].placed).length; }
+  function updateStatus(){
+    const n = placedCount();
+    countEl.textContent = n;
+    if(n === DEFS.length){ win(); }
+  }
+  function fmt(ms){
+    const s = Math.floor(ms/1000);
+    return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0');
+  }
+  function ensureTimer(){
+    if(!startTime) startTime = Date.now();
+  }
+  function stopTimer(){ if(tickTimer){ clearInterval(tickTimer); tickTimer=null; } }
+
+  function win(){
+    stopTimer();
+    winTimeEl.textContent = startTime ? fmt(Date.now()-startTime) : '0:00';
+    winEl.classList.remove('hidden');
+  }
+
+  /* ---------- solver ---------- */
+  // Fills every empty cell using the remaining (unplaced) pieces. Respects pieces already on board.
+  function solveRemaining(){
+    const g = grid.map(row => row.map(v => v ? 1 : 0));
+    const rem = DEFS.filter(d => !pieces[d.id].placed).map(d => ({id:d.id, w:d.w, h:d.h}));
+    const used = new Array(rem.length).fill(false);
+    const out = [];
+    function firstEmpty(){
+      for(let r=0;r<N;r++) for(let c=0;c<N;c++) if(!g[r][c]) return [r,c];
+      return null;
+    }
+    function bt(){
+      const fe = firstEmpty();
+      if(!fe) return true;
+      const [r,c] = fe;
+      for(let i=0;i<rem.length;i++){
+        if(used[i]) continue;
+        const pc = rem[i];
+        const orients = pc.w === pc.h ? [[pc.w,pc.h]] : [[pc.w,pc.h],[pc.h,pc.w]];
+        for(let o=0;o<orients.length;o++){
+          const [w,h] = orients[o];
+          if(r+h>N || c+w>N) continue;
+          let ok = true;
+          for(let rr=r; rr<r+h && ok; rr++) for(let cc=c; cc<c+w; cc++) if(g[rr][cc]){ ok=false; break; }
+          if(!ok) continue;
+          for(let rr=r; rr<r+h; rr++) for(let cc=c; cc<c+w; cc++) g[rr][cc]=1;
+          used[i]=true; out.push({id:pc.id, r, c, rot:o});
+          if(bt()) return true;
+          out.pop(); used[i]=false;
+          for(let rr=r; rr<r+h; rr++) for(let cc=c; cc<c+w; cc++) g[rr][cc]=0;
+        }
+      }
+      return false;
+    }
+    return bt() ? out : null;
+  }
+
+  function hint(){
+    const sol = solveRemaining();
+    if(!sol){ flashMessage('目前的擺法沒辦法拼完,先移開幾個方塊再試試。'); return; }
+    if(sol.length === 0) return;
+    const step = sol[0];               // the piece for the top-left empty cell
+    const p = pieces[step.id];
+    ensureTimer();
+    p.rot = step.rot;
+    sizeToBoard(p);
+    place(p, step.r, step.c);
+    select(null);
+  }
+
+  function solveAll(){
+    // Lift every movable piece (locked given pieces stay), then lay down a full solution.
+    DEFS.forEach(d => {
+      const p = pieces[d.id];
+      if(p.locked) return;
+      if(p.placed) toTray(p);
+      p.rot = 0;
+    });
+    const sol = solveRemaining();
+    if(!sol){ flashMessage('找不到解(理論上不會發生)。'); return; }
+    ensureTimer();
+    sol.forEach(step => {
+      const p = pieces[step.id];
+      p.rot = step.rot;
+      sizeToBoard(p);
+      place(p, step.r, step.c);
+    });
+    select(null);
+  }
+
+  let msgTimer = null;
+  function flashMessage(text){
+    let bar = document.getElementById('flash');
+    if(!bar){
+      bar = document.createElement('div');
+      bar.id = 'flash';
+      bar.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);'+
+        'background:#141414;color:#f3f0e7;padding:10px 16px;font-size:14px;'+
+        'border:2px solid #141414;z-index:12000;max-width:88vw;text-align:center;';
+      document.body.appendChild(bar);
+    }
+    bar.textContent = text;
+    bar.style.display = 'block';
+    clearTimeout(msgTimer);
+    msgTimer = setTimeout(()=>{ bar.style.display='none'; }, 2600);
+  }
+
+  function reset(){
+    window.removeEventListener('pointermove', onPointerMove);
+    window.removeEventListener('pointerup', onPointerUp);
+    window.removeEventListener('pointercancel', onPointerUp);
+    drag = null; ghost.style.display = 'none';
+    stopTimer(); startTime = null;
+    winEl.classList.add('hidden');
+    select(null);
+    computeCells();
+    newGrid();
+    makePieces();
+    updateStatus();
+  }
+
+  /* ---------- controls ---------- */
+  document.getElementById('rotateBtn').addEventListener('click', ()=>{
+    if(selectedId && pieces[selectedId]) rotate(pieces[selectedId]);
+  });
+  document.getElementById('solveBtn').addEventListener('click', solveAll);
+  document.getElementById('resetBtn').addEventListener('click', reset);
+  document.getElementById('againBtn').addEventListener('click', reset);
+
+  window.addEventListener('keydown', (e)=>{
+    if(e.key === 'r' || e.key === 'R'){
+      if(drag){ rotate(drag.piece); }
+      else if(selectedId && pieces[selectedId]){ rotate(pieces[selectedId]); }
+    } else if(e.key === 'Escape' && drag && drag.moved){
+      // cancel drag back to tray
+      const p = drag.piece;
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+      ghost.style.display='none';
+      p.el.classList.remove('dragging');
+      p.el.style.position=''; p.el.style.left=p.el.style.top='';
+      toTray(p); drag = null;
+    }
+  });
+
+  let resizeTimer = null;
+  window.addEventListener('resize', ()=>{
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(()=>{
+      computeCells();
+      DEFS.forEach(d=>{
+        const p = pieces[d.id];
+        if(p.placed){ p.el.style.left=(p.c*cell)+'px'; p.el.style.top=(p.r*cell)+'px'; sizeToBoard(p); }
+        else if(!(drag && drag.piece===p && drag.moved)){ sizeToTray(p); }
+      });
+    }, 120);
+  });
+
+  /* ---------- mode / level menu ---------- */
+  const modebar   = document.getElementById('modebar');
+  const levelmenu = document.getElementById('levelmenu');
+
+  function setActiveMode(btn){
+    modebar.querySelectorAll('button').forEach(x => x.classList.toggle('active', x === btn));
+  }
+  function startFree(){
+    currentLevel = null;
+    levelmenu.classList.add('hidden');
+    reset();
+  }
+  function startLevel(raw){
+    currentLevel = {id:raw.id, stars:raw.stars, given: buildGiven(raw)};
+    reset();
+  }
+  function showLevelMenu(stars){
+    const items = LEVELS.filter(l => l.stars === stars);
+    levelmenu.innerHTML = '';
+    if(items.length === 0){
+      const s = document.createElement('span');
+      s.className = 'menuhint';
+      s.textContent = '這個難度的題目還沒加入,晚點補上。';
+      levelmenu.appendChild(s);
+    } else {
+      items.forEach(raw => {
+        const b = document.createElement('button');
+        b.className = 'lvlbtn';
+        b.textContent = raw.id;
+        b.addEventListener('click', () => {
+          startLevel(raw);
+          levelmenu.querySelectorAll('.lvlbtn').forEach(x => x.classList.toggle('active', x === b));
+        });
+        levelmenu.appendChild(b);
+      });
+    }
+    levelmenu.classList.remove('hidden');
+  }
+
+  modebar.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if(!b) return;
+    setActiveMode(b);
+    if(b.dataset.mode === 'free'){ startFree(); }
+    else { showLevelMenu(+b.dataset.stars); }
+  });
+
+  /* ---------- go ---------- */
+  setActiveMode(modebar.querySelector('[data-mode="free"]'));
+  reset();
+})();
+</script>
+</body>
+</html>
