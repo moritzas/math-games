@@ -494,7 +494,7 @@
   function rotate(p, aroundPointer){
     if(p.locked) return;            // given pieces are fixed
     if(p.def.w === p.def.h) return; // square: nothing to do
-    if(drag && drag.piece === p){
+    if(drag && drag.piece === p && drag.moved){
       p.rot ^= 1;
       sizeToBoard(p);
       moveDragEl(drag.lastX, drag.lastY);
@@ -605,8 +605,8 @@
     ghost.style.display = 'none';
 
     if(!drag.moved){
+      drag = null;            // clear first: tap-rotate must NOT hit the mid-drag branch
       handleTap(p);
-      drag = null;
       return;
     }
 
