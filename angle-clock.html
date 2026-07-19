@@ -42,7 +42,7 @@
   @media(max-width:820px){ .layout{flex-direction:column;align-items:stretch;gap:14px;} }
 
   /* ---------- 時鐘 ---------- */
-  .clock-col{flex:0 0 auto;width:min(400px,100%);margin:0 auto;}
+  .clock-col{flex:0 0 auto;width:min(440px,100%);margin:0 auto;}
   .clock-card{background:var(--face);border:1px solid var(--line);border-radius:20px;
     padding:16px 16px 12px;box-shadow:0 18px 40px -24px rgba(20,32,58,.4);}
   svg.clock{display:block;width:100%;height:auto;margin:0 auto;touch-action:none;}
@@ -61,20 +61,21 @@
   .legend span{display:inline-flex;align-items:center;gap:5px;}
   .legend i{width:15px;height:4px;border-radius:3px;display:inline-block;}
 
-  /* ---------- 讀數（精簡橫列） ---------- */
-  .readout{display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap;justify-content:space-between;
-    background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:9px 14px;margin-top:11px;}
+  /* ---------- 讀數（上下兩行置中） ---------- */
+  .readout{display:flex;flex-direction:column;align-items:center;gap:7px;
+    background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin-top:11px;}
+  .r-time{text-align:center;}
   .r-time .k{font-size:11px;color:var(--muted);letter-spacing:.5px;}
-  .r-time .v{font-family:"JetBrains Mono",monospace;font-weight:700;font-size:23px;line-height:1.1;}
+  .r-time .v{font-family:"JetBrains Mono",monospace;font-weight:700;font-size:24px;line-height:1.1;}
   .r-time .v sup{font-size:.5em;color:var(--muted);font-weight:500;}
-  .r-stats{display:flex;gap:10px 15px;flex-wrap:wrap;}
-  .stat{text-align:right;}
+  .r-stats{display:flex;justify-content:center;gap:6px 12px;flex-wrap:wrap;width:100%;}
+  .stat{flex:0 0 auto;width:66px;text-align:center;}
   .stat .k{font-size:10.5px;color:var(--muted);letter-spacing:.3px;}
   .stat .v{font-family:"JetBrains Mono",monospace;font-weight:700;font-size:15px;line-height:1.2;}
   .stat.hour .v{color:var(--ink);}
   .stat.min .v{color:var(--minute);}
   .stat.angle .v{color:var(--arc);}
-  .stat.rel .v{color:var(--arc);font-size:13.5px;}
+  .stat.rel .v{color:var(--arc);}
 
   .toolbar{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center;}
   .tool{flex:1 1 auto;border:1px solid var(--line);background:#fff;color:var(--ink);font-family:inherit;
@@ -123,16 +124,20 @@
 
   /* ---------- 手機：塞進一個畫面 ---------- */
   @media(max-width:560px){
-    body{padding:12px 12px 26px;}
-    header{margin-bottom:11px;}
+    body{padding:10px 12px 24px;}
+    header{margin-bottom:8px;}
     .sub{font-size:12px;}
-    .clock-card{padding:12px 12px 10px;border-radius:18px;}
-    svg.clock{max-width:min(70vw,37vh,290px);}
-    .r-time .v{font-size:20px;}
-    .readout{padding:8px 12px;gap:8px 12px;}
+    .layout{gap:10px;}
+    .clock-card{padding:12px 12px 8px;border-radius:18px;}
+    svg.clock{max-width:min(82vw,43vh,340px);}
+    .clock-meta{margin-top:4px;}
+    .readout{margin-top:8px;padding:9px 12px;}
+    .r-time .v{font-size:22px;}
+    .stat{width:62px;}
+    .toolbar{margin-top:7px;}
     .panel-head{display:none;}
     .cat-title{font-size:13px;}
-    .cat{padding:11px 12px;}
+    .cat{padding:10px 12px;}
     footer{margin-top:14px;}
   }
 </style>
