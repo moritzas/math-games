@@ -265,7 +265,7 @@
   function nearest(cur,target){ let d=mod(target-cur); if(d>180)d-=360; return cur+d; }
   function anglesFor(t){ return {h:mod(t*0.5), m:mod(t*6), s:mod(((t%1)*60)*6)}; }
 
-  let cur={h:0,m:0,s:0}, mode="idle", anim=null, timeHTML=timeReadout(0);
+  let cur={h:0,m:0,s:0}, mode="idle", anim=null, liveAnim=null, timeHTML=timeReadout(0);
   const ease=p=>p<.5?4*p*p*p:1-Math.pow(-2*p+2,3)/2;
 
   function setClock(t){
@@ -279,7 +279,13 @@
 
   const btnLive=el("btnLive");
   function enterLive(){
-    mode="live"; btnLive.classList.add("live");
+    const T=liveTargets();
+    const lc={h:nearest(cur.h,T.h), m:nearest(cur.m,T.m), s:nearest(cur.s,T.s)};
+    liveAnim={ liveCont:lc,
+               offset:{h:cur.h-lc.h, m:cur.m-lc.m, s:cur.s-lc.s},
+               start:performance.now(), dur:1000 };
+    mode="toLive";
+    btnLive.classList.add("live");
     btnLive.querySelector(".dot").style.display="inline-block";
     el("liveText").textContent="現在時間(進行中)";
   }
@@ -289,9 +295,9 @@
       btnLive.querySelector(".dot").style.display="none";
       el("liveText").textContent="同步現在時間";
     }
-    if(mode==="live") mode="idle";
+    if(mode==="live"||mode==="toLive") mode="idle";
   }
-  btnLive.addEventListener("click",()=> mode==="live"?exitLive():enterLive());
+  btnLive.addEventListener("click",()=> btnLive.classList.contains("live")?exitLive():enterLive());
   el("btnReset").addEventListener("click",()=>{ closePanel(); reset(); });
 
   function liveTargets(){
@@ -306,6 +312,17 @@
       const T=liveTargets();
       cur.h=nearest(cur.h,T.h); cur.m=nearest(cur.m,T.m); cur.s=nearest(cur.s,T.s);
       timeHTML=`${T.hh}:${pad(T.mm)}:${pad(T.ss)}`;
+    }else if(mode==="toLive"){
+      const T=liveTargets(), la=liveAnim;
+      la.liveCont.h=nearest(la.liveCont.h,T.h);
+      la.liveCont.m=nearest(la.liveCont.m,T.m);
+      la.liveCont.s=nearest(la.liveCont.s,T.s);
+      const p=Math.min(1,(performance.now()-la.start)/la.dur), k=1-ease(p);
+      cur.h=la.liveCont.h+la.offset.h*k;
+      cur.m=la.liveCont.m+la.offset.m*k;
+      cur.s=la.liveCont.s+la.offset.s*k;
+      timeHTML=`${T.hh}:${pad(T.mm)}:${pad(T.ss)}`;
+      if(p>=1){ cur.h=la.liveCont.h; cur.m=la.liveCont.m; cur.s=la.liveCont.s; mode="live"; }
     }else if(mode==="anim"){
       const p=Math.min(1,(performance.now()-anim.start)/anim.dur), e=ease(p);
       cur.h=anim.from.h+(anim.to.h-anim.from.h)*e;
