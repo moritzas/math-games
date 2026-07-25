@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>點格棋</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;900&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #1a1a2e;
+    --surface: #16213e;
+    --panel: #0f3460;
+    --p1: #e94560;
+    --p2: #00d2ff;
+    --p1-dim: rgba(233,69,96,0.18);
+    --p2-dim: rgba(0,210,255,0.18);
+    --dot: #c8d6e5;
+    --line-idle: rgba(200,214,229,0.15);
+    --line-hover: rgba(200,214,229,0.5);
+    --text: #e0eafc;
+    --text-muted: #7f8c8d;
+    --removed: rgba(255,255,255,0.04);
+    --gold: #f9ca24;
+    --radius: 12px;
+    --transition: 0.15s ease;
+  }
+
+  body {
+    font-family: 'Nunito', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    user-select: none;
+  }
+
+  h1 {
+    font-size: 2.2rem;
+    font-weight: 900;
+    letter-spacing: -0.5px;
+    margin-bottom: 4px;
+    background: linear-gradient(135deg, var(--p1), var(--p2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .subtitle {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  /* ── SETUP PANEL ── */
+  #setup {
+    background: var(--surface);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 16px;
+    padding: 28px 32px;
+    width: min(480px, 100%);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .field-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+
+  .seg-group {
+    display: flex;
+    gap: 6px;
+  }
+
+  .seg-btn {
+    flex: 1;
+    padding: 9px 6px;
+    border: 1.5px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.92rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+  .seg-btn:hover { border-color: var(--p2); color: var(--p2); }
+  .seg-btn.active { background: var(--p2); border-color: var(--p2); color: var(--bg); }
+
+  .mode-group { display: flex; gap: 10px; }
+  .mode-btn {
+    flex: 1;
+    padding: 12px;
+    border: 1.5px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all var(--transition);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .mode-btn .icon { font-size: 1.5rem; }
+  .mode-btn:hover { border-color: var(--p2); }
+  .mode-btn.active { border-color: var(--p2); background: var(--p2-dim); }
+
+  .first-group {
+    display: flex;
+    gap: 8px;
+  }
+  .first-btn {
+    flex: 1;
+    padding: 10px;
+    border: 1.5px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+  .first-btn:hover { border-color: var(--p1); }
+  .first-btn.p1.active { border-color: var(--p1); background: var(--p1-dim); color: var(--p1); }
+  .first-btn.p2.active { border-color: var(--p2); background: var(--p2-dim); color: var(--p2); }
+
+  .hint-box {
+    background: rgba(249,202,36,0.08);
+    border: 1px solid rgba(249,202,36,0.25);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 0.82rem;
+    color: var(--gold);
+    line-height: 1.5;
+  }
+
+  /* Mini preview grid for removal */
+  #removal-section { display: flex; flex-direction: column; gap: 10px; }
+  #removal-label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  #remove-toggle {
+    appearance: none;
+    width: 36px; height: 20px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 20px;
+    position: relative;
+    cursor: pointer;
+    transition: background var(--transition);
+    flex-shrink: 0;
+  }
+  #remove-toggle::after {
+    content:'';
+    position: absolute;
+    width: 14px; height: 14px;
+    background: #fff;
+    border-radius: 50%;
+    top: 3px; left: 3px;
+    transition: transform var(--transition);
+  }
+  #remove-toggle:checked { background: var(--p2); }
+  #remove-toggle:checked::after { transform: translateX(16px); }
+
+  #mini-grid-wrap {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  #mini-grid-wrap.visible { display: flex; }
+  #mini-grid {
+    display: grid;
+    gap: 4px;
+  }
+  .mini-cell {
+    width: 36px; height: 36px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.07);
+    border: 1.5px solid rgba(255,255,255,0.1);
+    cursor: pointer;
+    transition: all var(--transition);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem; color: transparent;
+  }
+  .mini-cell:hover { background: rgba(233,69,96,0.25); border-color: var(--p1); }
+  .mini-cell.removed {
+    background: rgba(233,69,96,0.15);
+    border-color: var(--p1);
+    color: var(--p1);
+  }
+
+  .start-btn {
+    background: linear-gradient(135deg, var(--p1), #c0392b);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 14px;
+    font-family: inherit;
+    font-size: 1.05rem;
+    font-weight: 900;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: opacity var(--transition), transform var(--transition);
+  }
+  .start-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+  .start-btn:active { transform: translateY(0); }
+
+  /* ── GAME PANEL ── */
+  #game { display: none; flex-direction: column; align-items: center; gap: 16px; width: 100%; }
+
+  .scoreboard {
+    display: flex;
+    gap: 12px;
+    width: min(520px, 100%);
+  }
+  .score-card {
+    flex: 1;
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 2px solid transparent;
+    background: var(--surface);
+    transition: all 0.25s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .score-card.p1-card { border-color: var(--p1-dim); }
+  .score-card.p2-card { border-color: var(--p2-dim); }
+  .score-card.active.p1-card { border-color: var(--p1); background: var(--p1-dim); }
+  .score-card.active.p2-card { border-color: var(--p2); background: var(--p2-dim); }
+  .score-name {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .p1-card .score-name { color: var(--p1); }
+  .p2-card .score-name { color: var(--p2); }
+  .score-num {
+    font-size: 2rem;
+    font-weight: 900;
+    line-height: 1;
+  }
+  .score-tag {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+  }
+
+  .turn-indicator {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-align: center;
+    min-height: 20px;
+    letter-spacing: 0.5px;
+  }
+
+  /* ── CANVAS / SVG GAME BOARD ── */
+  #board-wrap {
+    position: relative;
+    touch-action: none;
+  }
+  #board-svg {
+    display: block;
+    cursor: default;
+  }
+
+  /* ── RESULT OVERLAY ── */
+  #result-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(10,10,26,0.85);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  #result-overlay.show { display: flex; }
+  .result-box {
+    background: var(--surface);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 20px;
+    padding: 40px 48px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    animation: popIn 0.3s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  @keyframes popIn {
+    from { transform: scale(0.7); opacity: 0; }
+    to   { transform: scale(1); opacity: 1; }
+  }
+  .result-emoji { font-size: 3.5rem; }
+  .result-title { font-size: 1.8rem; font-weight: 900; }
+  .result-sub { color: var(--text-muted); font-size: 0.9rem; }
+  .result-actions { display: flex; gap: 10px; margin-top: 10px; }
+  .result-actions button {
+    padding: 11px 22px;
+    border-radius: 10px;
+    border: none;
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity var(--transition);
+  }
+  .result-actions button:hover { opacity: 0.85; }
+  .btn-again { background: var(--p1); color: #fff; }
+  .btn-menu  { background: rgba(255,255,255,0.1); color: var(--text); }
+
+  .back-btn {
+    background: transparent;
+    border: 1.5px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    padding: 7px 16px;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: all var(--transition);
+  }
+  .back-btn:hover { border-color: var(--text-muted); color: var(--text); }
+</style>
+</head>
+<body>
+
+<h1>點格棋</h1>
+<p class="subtitle">Dots &amp; Boxes</p>
+
+<!-- ── SETUP ── -->
+<div id="setup">
+
+  <div>
+    <div class="field-label">遊戲模式</div>
+    <div class="mode-group">
+      <button class="mode-btn active" data-mode="ai" onclick="selectMode('ai')">
+        <span class="icon">🤖</span>對戰 AI
+      </button>
+      <button class="mode-btn" data-mode="hotseat" onclick="selectMode('hotseat')">
+        <span class="icon">🤝</span>雙人輪流
+      </button>
+    </div>
+  </div>
+
+  <div>
+    <div class="field-label">格子寬度（行）</div>
+    <div class="seg-group" id="cols-group"></div>
+  </div>
+
+  <div>
+    <div class="field-label">格子高度（列）</div>
+    <div class="seg-group" id="rows-group"></div>
+  </div>
+
+  <div>
+    <div class="field-label">誰先走</div>
+    <div class="first-group">
+      <button class="first-btn p1 active" onclick="selectFirst(1)">🔴 玩家一先</button>
+      <button class="first-btn p2" id="first-p2-btn" onclick="selectFirst(2)">🔵 玩家二先</button>
+    </div>
+  </div>
+
+  <div id="removal-section">
+    <div id="removal-label-row">
+      <div>
+        <div class="field-label" style="margin-bottom:2px">移除部分格子</div>
+        <div style="font-size:0.78rem;color:var(--text-muted)">讓棋盤有缺口，增加變數</div>
+      </div>
+      <input type="checkbox" id="remove-toggle" onchange="toggleRemoval()">
+    </div>
+    <div id="mini-grid-wrap">
+      <div style="font-size:0.8rem;color:var(--text-muted);align-self:flex-start">點選要移除的格子：</div>
+      <div id="mini-grid"></div>
+      <div class="hint-box">⚠️ 被移除的格子不能被任何玩家佔領，也不計入分數。</div>
+    </div>
+  </div>
+
+  <button class="start-btn" onclick="startGame()">開始遊戲 ▶</button>
+</div>
+
+<!-- ── GAME ── -->
+<div id="game">
+  <div class="scoreboard">
+    <div class="score-card p1-card active" id="card1">
+      <div class="score-name" id="name1">玩家一</div>
+      <div class="score-num" id="score1">0</div>
+      <div class="score-tag">格子數</div>
+    </div>
+    <div class="score-card p2-card" id="card2">
+      <div class="score-name" id="name2">玩家二</div>
+      <div class="score-num" id="score2">0</div>
+      <div class="score-tag">格子數</div>
+    </div>
+  </div>
+  <div class="turn-indicator" id="turn-text"></div>
+  <div id="board-wrap">
+    <svg id="board-svg"></svg>
+  </div>
+  <button class="back-btn" onclick="backToMenu()">← 回主選單</button>
+</div>
+
+<!-- ── RESULT ── -->
+<div id="result-overlay">
+  <div class="result-box">
+    <div class="result-emoji" id="res-emoji">🎉</div>
+    <div class="result-title" id="res-title"></div>
+    <div class="result-sub" id="res-sub"></div>
+    <div class="result-actions">
+      <button class="btn-again" onclick="startGame()">再玩一局</button>
+      <button class="btn-menu" onclick="backToMenu()">回主選單</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── STATE ──
+let cfg = { cols: 4, rows: 4, mode: 'ai', first: 1, removeCells: new Set() };
+let game = {};
+
+// ── SETUP UI ──
+function buildSegGroups() {
+  ['cols','rows'].forEach(dim => {
+    const g = document.getElementById(dim+'-group');
+    g.innerHTML = '';
+    for (let v = 2; v <= 8; v++) {
+      const b = document.createElement('button');
+      b.className = 'seg-btn' + (cfg[dim] === v ? ' active' : '');
+      b.textContent = v;
+      b.onclick = () => {
+        cfg[dim] = v;
+        document.querySelectorAll(`#${dim}-group .seg-btn`).forEach(x=>x.classList.remove('active'));
+        b.classList.add('active');
+        if (document.getElementById('remove-toggle').checked) buildMiniGrid();
+      };
+      g.appendChild(b);
+    }
+  });
+}
+buildSegGroups();
+selectMode(cfg.mode);
+
+function selectMode(m) {
+  cfg.mode = m;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === m));
+  const p2btn = document.getElementById('first-p2-btn');
+  p2btn.textContent = m === 'ai' ? '🤖 AI 先' : '🔵 玩家二先';
+  if (cfg.first === 2 && m === 'ai') document.getElementById('first-p2-btn').classList.add('active');
+}
+
+function selectFirst(p) {
+  cfg.first = p;
+  document.querySelector('.first-btn.p1').classList.toggle('active', p===1);
+  document.querySelector('.first-btn.p2').classList.toggle('active', p===2);
+}
+
+function toggleRemoval() {
+  const on = document.getElementById('remove-toggle').checked;
+  const wrap = document.getElementById('mini-grid-wrap');
+  wrap.classList.toggle('visible', on);
+  if (on) buildMiniGrid(); else cfg.removeCells = new Set();
+}
+
+function buildMiniGrid() {
+  cfg.removeCells = new Set();
+  const g = document.getElementById('mini-grid');
+  g.style.gridTemplateColumns = `repeat(${cfg.cols}, 36px)`;
+  g.innerHTML = '';
+  for (let r = 0; r < cfg.rows; r++) {
+    for (let c = 0; c < cfg.cols; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'mini-cell';
+      cell.dataset.r = r; cell.dataset.c = c;
+      cell.textContent = '✕';
+      cell.onclick = () => {
+        const key = `${r},${c}`;
+        if (cfg.removeCells.has(key)) {
+          cfg.removeCells.delete(key);
+          cell.classList.remove('removed');
+        } else {
+          cfg.removeCells.add(key);
+          cell.classList.add('removed');
+        }
+      };
+      g.appendChild(cell);
+    }
+  }
+}
+
+// ── GAME LOGIC ──
+function startGame() {
+  document.getElementById('result-overlay').classList.remove('show');
+  const C = cfg.cols, R = cfg.rows;
+  const removedSet = new Set(cfg.removeCells);
+
+  // hLines[r][c] = 0/1/2 (none/p1/p2), r=0..R, c=0..C-1
+  const hLines = Array.from({length:R+1}, ()=>new Array(C).fill(0));
+  // vLines[r][c] = 0/1/2, r=0..R-1, c=0..C+1 (but we use 0..C)
+  const vLines = Array.from({length:R}, ()=>new Array(C+1).fill(0));
+  // boxes[r][c] = 0/1/2
+  const boxes = Array.from({length:R}, ()=>new Array(C).fill(0));
+
+  game = {
+    C, R, hLines, vLines, boxes,
+    removed: removedSet,
+    mode: cfg.mode,
+    turn: cfg.first,   // 1 or 2
+    scores: [0,0],
+    aiThinking: false,
+    names: cfg.mode === 'ai' ? ['玩家一','AI'] : ['玩家一','玩家二']
+  };
+
+  document.getElementById('setup').style.display = 'none';
+  const gEl = document.getElementById('game');
+  gEl.style.display = 'flex';
+  document.getElementById('name1').textContent = game.names[0];
+  document.getElementById('name2').textContent = game.names[1];
+  renderBoard();
+  updateUI();
+
+  if (game.mode === 'ai' && game.turn === 2) {
+    setTimeout(doAiMove, 500);
+  }
+}
+
+function backToMenu() {
+  document.getElementById('result-overlay').classList.remove('show');
+  document.getElementById('game').style.display = 'none';
+  document.getElementById('setup').style.display = 'flex';
+}
+
+// ── RENDER ──
+const DOT_R = 5;
+const CELL = 68;
+const PAD = 28;
+
+function bx(c) { return PAD + c * CELL; }
+function by(r) { return PAD + r * CELL; }
+
+function renderBoard() {
+  const {C, R, removed} = game;
+  const W = PAD*2 + C*CELL;
+  const H = PAD*2 + R*CELL;
+  const svg = document.getElementById('board-svg');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('width', W);
+  svg.setAttribute('height', H);
+  svg.innerHTML = '';
+
+  // Removed cell backgrounds
+  removed.forEach(k => {
+    const [rr,cc] = k.split(',').map(Number);
+    const rect = makeSvg('rect', {
+      x: bx(cc)+2, y: by(rr)+2,
+      width: CELL-4, height: CELL-4,
+      rx: 6, fill: 'rgba(233,69,96,0.07)',
+      stroke: 'rgba(233,69,96,0.2)', 'stroke-width': 1
+    });
+    svg.appendChild(rect);
+    const txt = makeSvg('text', {
+      x: bx(cc)+CELL/2, y: by(rr)+CELL/2+5,
+      'text-anchor':'middle', fill:'rgba(233,69,96,0.25)',
+      'font-size':'22', 'font-family':'sans-serif'
+    });
+    txt.textContent = '✕';
+    svg.appendChild(txt);
+  });
+
+  // Box fills
+  for (let r=0;r<R;r++) for (let c=0;c<C;c++) {
+    const v = game.boxes[r][c];
+    if (v === 0) continue;
+    const fill = v===1 ? 'var(--p1-dim)' : 'var(--p2-dim)';
+    const rect = makeSvg('rect',{
+      x:bx(c)+3, y:by(r)+3,
+      width:CELL-6, height:CELL-6,
+      rx:5, fill
+    });
+    svg.appendChild(rect);
+    // owner initial
+    const lbl = makeSvg('text',{
+      x:bx(c)+CELL/2, y:by(r)+CELL/2+6,
+      'text-anchor':'middle',
+      fill: v===1?'var(--p1)':'var(--p2)',
+      'font-size':'18','font-weight':'700','font-family':'Nunito,sans-serif',
+      opacity:'0.6'
+    });
+    lbl.textContent = game.names[v-1][0];
+    svg.appendChild(lbl);
+  }
+
+  // Horizontal lines
+  for (let r=0;r<=R;r++) for (let c=0;c<C;c++) {
+    drawLine(svg, 'h', r, c);
+  }
+  // Vertical lines
+  for (let r=0;r<R;r++) for (let c=0;c<=C;c++) {
+    drawLine(svg, 'v', r, c);
+  }
+
+  // Dots — only draw if at least one adjacent cell is valid
+  for (let r=0;r<=R;r++) for (let c=0;c<=C;c++) {
+    if (!isDotVisible(r,c)) continue;
+    const dot = makeSvg('circle',{
+      cx:bx(c), cy:by(r), r:DOT_R,
+      fill:'var(--dot)'
+    });
+    svg.appendChild(dot);
+  }
+}
+
+function drawLine(svg, dir, r, c) {
+  const {hLines, vLines} = game;
+  let val, x1,y1,x2,y2, isH;
+  if (dir==='h') {
+    val = hLines[r][c]; isH=true;
+    x1=bx(c); y1=by(r); x2=bx(c+1); y2=by(r);
+  } else {
+    val = vLines[r][c]; isH=false;
+    x1=bx(c); y1=by(r); x2=bx(c); y2=by(r+1);
+  }
+
+  // If no valid adjacent cell exists, this line does not exist — don't draw it
+  if (!isLinePlayable(dir,r,c)) return;
+
+  let stroke, sw;
+  if (val === 0) {
+    stroke='var(--line-idle)'; sw=2;
+  } else {
+    stroke = val===1?'var(--p1)':'var(--p2)'; sw=4;
+  }
+
+  const line = makeSvg('line',{x1,y1,x2,y2,stroke,'stroke-width':sw,'stroke-linecap':'round'});
+  svg.appendChild(line);
+
+  if (val===0 && !game.aiThinking && !(game.mode==='ai' && game.turn===2)) {
+    const hit = makeSvg('rect',{
+      x:Math.min(x1,x2)-(isH?0:8), y:Math.min(y1,y2)-(isH?8:0),
+      width:Math.abs(x2-x1)+(isH?0:16), height:Math.abs(y2-y1)+(isH?16:0),
+      fill:'transparent', cursor:'pointer', opacity:0
+    });
+    hit.addEventListener('mouseenter', ()=>{
+      line.setAttribute('stroke','var(--line-hover)');
+      line.setAttribute('stroke-width','3');
+    });
+    hit.addEventListener('mouseleave', ()=>{
+      line.setAttribute('stroke','var(--line-idle)');
+      line.setAttribute('stroke-width','2');
+    });
+    hit.addEventListener('click', ()=>{ playerMove(dir,r,c); });
+    svg.appendChild(hit);
+  }
+}
+
+function makeSvg(tag, attrs) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [k,v] of Object.entries(attrs)) el.setAttribute(k,v);
+  return el;
+}
+
+function adjacentCells(dir,r,c) {
+  const {C,R} = game;
+  if (dir==='h') {
+    const res=[];
+    if (r>0) res.push([r-1,c]);
+    if (r<R) res.push([r,c]);
+    return res;
+  } else {
+    const res=[];
+    if (c>0) res.push([r,c-1]);
+    if (c<C) res.push([r,c]);
+    return res;
+  }
+}
+
+// A line is only playable/visible if at least one adjacent cell is valid (exists & not removed)
+function isLinePlayable(dir,r,c) {
+  const {removed} = game;
+  return adjacentCells(dir,r,c).some(([ar,ac]) => !removed.has(`${ar},${ac}`));
+}
+
+// A dot at grid-point (r,c) is visible if at least one of its 4 diagonal cells is valid
+function isDotVisible(r,c) {
+  const {C,R,removed} = game;
+  const corners = [[r-1,c-1],[r-1,c],[r,c-1],[r,c]];
+  return corners.some(([br,bc]) =>
+    br>=0 && br<R && bc>=0 && bc<C && !removed.has(`${br},${bc}`)
+  );
+}
+
+// ── MOVE ──
+function playerMove(dir,r,c) {
+  if (game.aiThinking) return;
+  if (dir==='h' && game.hLines[r][c]!==0) return;
+  if (dir==='v' && game.vLines[r][c]!==0) return;
+  applyMove(dir,r,c,game.turn);
+}
+
+function applyMove(dir,r,c,player) {
+  const {hLines,vLines,boxes,C,R,removed} = game;
+  if (dir==='h') hLines[r][c]=player;
+  else vLines[r][c]=player;
+
+  let captured = 0;
+  // check all adjacent cells
+  adjacentCells(dir,r,c).forEach(([br,bc])=>{
+    if (removed.has(`${br},${bc}`)) return;
+    if (isBoxComplete(br,bc) && boxes[br][bc]===0) {
+      boxes[br][bc]=player;
+      game.scores[player-1]++;
+      captured++;
+    }
+  });
+
+  if (isGameOver()) {
+    renderBoard();
+    updateUI();
+    setTimeout(showResult,400);
+    return;
+  }
+
+  // captured => same player again; else switch
+  if (captured===0) {
+    game.turn = game.turn===1?2:1;
+  }
+
+  renderBoard();
+  updateUI();
+
+  if (game.mode==='ai' && game.turn===2) {
+    game.aiThinking=true;
+    renderBoard(); // re-render to remove hover handlers
+    setTimeout(doAiMove, 550);
+  }
+}
+
+function isBoxComplete(r,c) {
+  const {hLines,vLines} = game;
+  return hLines[r][c]!==0 && hLines[r+1][c]!==0 &&
+         vLines[r][c]!==0 && vLines[r][c+1]!==0;
+}
+
+function isGameOver() {
+  const {C,R,boxes,removed} = game;
+  for (let r=0;r<R;r++) for (let c=0;c<C;c++) {
+    if (!removed.has(`${r},${c}`) && boxes[r][c]===0) return false;
+  }
+  return true;
+}
+
+// ── AI ──
+function doAiMove() {
+  const move = bestAiMove();
+  if (!move) { game.aiThinking=false; return; }
+  game.aiThinking=false;
+  applyMove(move.dir, move.r, move.c, 2);
+}
+
+function getAllEmptyMoves() {
+  const {C,R,hLines,vLines} = game;
+  const moves=[];
+  for (let r=0;r<=R;r++) for (let c=0;c<C;c++) {
+    if (hLines[r][c]===0 && isLinePlayable('h',r,c)) {
+      moves.push({dir:'h',r,c});
+    }
+  }
+  for (let r=0;r<R;r++) for (let c=0;c<=C;c++) {
+    if (vLines[r][c]===0 && isLinePlayable('v',r,c)) {
+      moves.push({dir:'v',r,c});
+    }
+  }
+  return moves;
+}
+
+function countCapturedIfMove(dir,r,c) {
+  // simulate
+  const {hLines,vLines,removed} = game;
+  if (dir==='h') hLines[r][c]=2; else vLines[r][c]=2;
+  let cap=0;
+  adjacentCells(dir,r,c).forEach(([br,bc])=>{
+    if (!removed.has(`${br},${bc}`) && isBoxComplete(br,bc) && game.boxes[br][bc]===0) cap++;
+  });
+  if (dir==='h') hLines[r][c]=0; else vLines[r][c]=0;
+  return cap;
+}
+
+function countSidesOfBox(r,c) {
+  const {hLines,vLines} = game;
+  let s=0;
+  if (hLines[r][c]!==0) s++;
+  if (hLines[r+1][c]!==0) s++;
+  if (vLines[r][c]!==0) s++;
+  if (vLines[r][c+1]!==0) s++;
+  return s;
+}
+
+function sidesAfterMove(dir,r,c) {
+  // How many boxes would have 3 sides after this move (dangerous — gives opponent capture)
+  const {C,R,hLines,vLines,removed} = game;
+  if (dir==='h') hLines[r][c]=2; else vLines[r][c]=2;
+  let dangerous=0;
+  for (let br=0;br<R;br++) for (let bc=0;bc<C;bc++) {
+    if (!removed.has(`${br},${bc}`) && game.boxes[br][bc]===0 && countSidesOfBox(br,bc)===3) dangerous++;
+  }
+  if (dir==='h') hLines[r][c]=0; else vLines[r][c]=0;
+  return dangerous;
+}
+
+function bestAiMove() {
+  const moves = getAllEmptyMoves();
+  if (moves.length===0) return null;
+
+  // 1. Take any box we can complete
+  const captureMoves = moves.filter(m=>countCapturedIfMove(m.dir,m.r,m.c)>0);
+  if (captureMoves.length>0) {
+    captureMoves.sort((a,b)=>countCapturedIfMove(b.dir,b.r,b.c)-countCapturedIfMove(a.dir,a.r,a.c));
+    return captureMoves[0];
+  }
+
+  // 2. Prefer moves that don't open 3-sided boxes
+  const safeMoves = moves.filter(m=>sidesAfterMove(m.dir,m.r,m.c)===0);
+  if (safeMoves.length>0) return safeMoves[Math.floor(Math.random()*safeMoves.length)];
+
+  // 3. Give up minimum boxes (Least sacrifice)
+  moves.sort((a,b)=>sidesAfterMove(a.dir,a.r,a.c)-sidesAfterMove(b.dir,b.r,b.c));
+  return moves[0];
+}
+
+// ── UI ──
+function updateUI() {
+  const {scores,names,turn,mode} = game;
+  document.getElementById('score1').textContent=scores[0];
+  document.getElementById('score2').textContent=scores[1];
+  document.getElementById('card1').classList.toggle('active',turn===1);
+  document.getElementById('card2').classList.toggle('active',turn===2);
+  const aiWait = mode==='ai' && turn===2;
+  document.getElementById('turn-text').textContent = aiWait
+    ? '🤖 AI 思考中…'
+    : `輪到 ${names[turn-1]} 畫線`;
+}
+
+function showResult() {
+  const {scores,names,removed,C,R} = game;
+  const total = C*R - removed.size;
+  const [s1,s2] = scores;
+  let emoji,title,sub;
+  if (s1>s2) { emoji='🥇'; title=`${names[0]} 獲勝！`; sub=`${s1} 對 ${s2} 格`; }
+  else if (s2>s1) { emoji='🎉'; title=`${names[1]} 獲勝！`; sub=`${s2} 對 ${s1} 格`; }
+  else { emoji='🤝'; title='平局！'; sub=`各得 ${s1} 格`; }
+  document.getElementById('res-emoji').textContent=emoji;
+  document.getElementById('res-title').textContent=title;
+  document.getElementById('res-sub').textContent=sub;
+  document.getElementById('result-overlay').classList.add('show');
+}
+</script>
+</body>
+</html>
