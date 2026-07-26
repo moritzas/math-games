@@ -148,16 +148,24 @@ const sum=a=>a.reduce((x,y)=>x+y,0);
 const kept=()=>S.turns.filter(t=>t.keep).map(t=>t.keep);
 const taxed=()=>S.turns.flatMap(t=>t.tax);
 
-function cardScale(){
-  const [w,h,f] = S.N<=30 ? [42,40,16] : S.N<=60 ? [38,36,15]
-                : S.N<=110 ? [34,32,13.5] : [31,29,12.5];
+/* 手機上帳冊太長就分欄：>10 列分兩欄，每欄再滿 12 列就分三欄，最多三欄 */
+function ledgerCols(T,mob){
+  if(!mob||T<=10) return 1;
+  return Math.ceil(T/2)<12 ? 2 : 3;
+}
+function cardScale(nc){
+  let [w,h,f] = S.N<=30 ? [42,40,16] : S.N<=60 ? [38,36,15]
+              : S.N<=110 ? [34,32,13.5] : [31,29,12.5];
+  const k = nc===3 ? .60 : nc===2 ? .78 : 1;
   const r=document.documentElement.style;
-  r.setProperty('--cw',w+'px'); r.setProperty('--ch',h+'px'); r.setProperty('--cf',f+'px');
+  r.setProperty('--cw',Math.round(w*k)+'px');
+  r.setProperty('--ch',Math.round(h*k)+'px');
+  r.setProperty('--cf',Math.max(9.5,f*k).toFixed(1)+'px');
 }
 function newGame(n){
   S.N=Math.max(N_MIN,Math.min(N_MAX,n|0));
   S.pool=Array.from({length:S.N},(_,i)=>i+1);
-  S.turns=[]; S.over=false; S.hist=[]; cardScale(); render();
+  S.turns=[]; S.over=false; S.hist=[]; render();
 }
 const snapshot=()=>({pool:S.pool.slice(),turns:S.turns.map(t=>({...t,tax:t.tax.slice()})),over:S.over});
 
@@ -211,7 +219,9 @@ function render(){
   const L=$('ledger'), mob=innerWidth<640;
   L.innerHTML=''; L.className=mob?'mob':'';
   const T=S.turns.length;
-  L.style.gridTemplateColumns = mob ? '1fr 1fr'
+  const NC=ledgerCols(T,mob), perCol=Math.max(1,Math.ceil(T/NC));
+  cardScale(NC);
+  L.style.gridTemplateColumns = mob ? `repeat(${NC}, 1fr 1fr)`
     : 'minmax(76px,.8fr) minmax(240px,2fr) minmax(120px,1.1fr)';
   const put=(el,col,row,span)=>{el.style.gridColumn=col;
     el.style.gridRow=span?`${row} / span ${span}`:row; L.appendChild(el)};
@@ -232,22 +242,30 @@ function render(){
   let hRow,tRow0;
   if(mob){ put(wrap,'1 / -1',1); hRow=2; tRow0=3; }
   else   { hRow=1; tRow0=2; }
-  put(mk('hdr home','我家'),1,hRow);
-  if(!mob) put(mk('hdr pool','待選錢包'),2,hRow);
-  put(mk('hdr emp','皇帝'),mob?2:3,hRow);
-  if(!mob) put(wrap,2,tRow0,Math.max(1,T));
+  if(mob){
+    for(let c=0;c<NC;c++){
+      put(mk('hdr home','我家'),2*c+1,hRow);
+      put(mk('hdr emp','皇帝'),2*c+2,hRow);
+    }
+  }else{
+    put(mk('hdr home','我家'),1,hRow);
+    put(mk('hdr pool','待選錢包'),2,hRow);
+    put(mk('hdr emp','皇帝'),3,hRow);
+    put(wrap,2,tRow0,Math.max(1,T));
+  }
 
   S.turns.forEach((t,i)=>{
-    const row=tRow0+i;
+    const c   = mob ? Math.floor(i/perCol) : 0;
+    const row = tRow0 + (mob ? i%perCol : i);
     const lc=mk('cell home'+(t.fresh?' fresh':''));
     if(t.keep){
       const no=mk('turnno'); no.textContent=i+1; lc.appendChild(no);
       lc.appendChild(cardEl(t.keep,'kept'));
     }else lc.appendChild(mk('sweep','沒有因數可抽 → 全數上繳'));
-    put(lc,1,row);
+    put(lc,mob?2*c+1:1,row);
     const rc=mk('cell emp'+(t.fresh?' fresh':''));
     t.tax.forEach(n=>rc.appendChild(cardEl(n,'taxed')));
-    put(rc,mob?2:3,row);
+    put(rc,mob?2*c+2:3,row);
   });
   drawScore();
 }
