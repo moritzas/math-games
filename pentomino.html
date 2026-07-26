@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>五連方 Pentomino</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --cell:30px; --barh:48px;
+  --paper:#f7f6f2; --rule:#dcd9cf;
+  --ink:#1e2536; --ink-soft:#5b6478;
+  --panel:rgba(255,255,255,.92); --panel-line:#d5d2c7;
+  --glow:#fff6d2;
+  --enc:rgba(46,138,110,.18); --enc-line:#2e8a6e;
+  --warn:#c98a2e;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0;overflow:hidden}
+body{background:var(--paper);color:var(--ink);
+  font-family:"Noto Sans TC","Space Grotesk",system-ui,sans-serif;touch-action:none}
+
+#grid{position:fixed;inset:0;
+  background-image:
+    linear-gradient(to right,var(--rule) 1px,transparent 1px),
+    linear-gradient(to bottom,var(--rule) 1px,transparent 1px);
+  background-size:var(--cell) var(--cell)}
+#world{position:fixed;inset:0;cursor:grab}
+#world.panning{cursor:grabbing}
+
+.target-cell{position:absolute;background:var(--glow);box-shadow:inset 0 0 0 1px rgba(223,174,66,.3)}
+.enc-cell{position:absolute;background:var(--enc);box-shadow:inset 0 0 0 1px rgba(46,138,110,.22)}
+.edge{position:absolute;pointer-events:none;border-radius:2px}
+.badge{position:absolute;font-family:"Space Grotesk",sans-serif;font-size:11px;font-weight:700;
+  color:#fff;padding:1px 6px;border-radius:999px;pointer-events:none;white-space:nowrap;
+  transform:translateY(-120%)}
+
+.piece{position:absolute;cursor:grab;filter:drop-shadow(0 2px 3px rgba(30,37,54,.18))}
+.piece.dragging{cursor:grabbing;z-index:60;filter:drop-shadow(0 10px 16px rgba(30,37,54,.3))}
+.piece.staged{opacity:.55}
+.pcell{position:absolute;border-radius:2px}
+.piece.selected .pcell{outline:2px solid var(--ink);outline-offset:-2px}
+.piece .label{position:absolute;font-family:"Space Grotesk",sans-serif;font-weight:700;
+  color:rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;
+  pointer-events:none;user-select:none}
+
+.panel{position:fixed;z-index:100;background:var(--panel);backdrop-filter:blur(8px);
+  border:1px solid var(--panel-line);border-radius:10px;box-shadow:0 4px 16px rgba(30,37,54,.10)}
+#topbar{top:10px;left:10px;padding:9px 11px;display:flex;flex-direction:column;gap:7px;
+  max-width:min(440px,calc(100vw - 20px))}
+.row{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.eyebrow{font-family:"Space Grotesk",sans-serif;font-size:10px;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--ink-soft);font-weight:500;margin-right:2px}
+
+button{font-family:inherit;font-size:13px;color:var(--ink);background:#fff;
+  border:1px solid var(--panel-line);border-radius:7px;padding:5px 10px;cursor:pointer;
+  transition:background .12s,border-color .12s,color .12s}
+button:hover:not(:disabled){background:#f0eee7}
+button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+button:disabled{opacity:.4;cursor:not-allowed}
+.pill{padding:4px 9px;font-size:12.5px}
+.letter{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:13.5px;
+  width:31px;padding:5px 0;text-align:center}
+.letter.dead{position:relative;color:#a9a49a;background:#efece5}
+.letter.dead::after{content:"";position:absolute;left:5px;right:5px;top:50%;
+  border-top:1.5px solid #b8b2a6;transform:rotate(-22deg)}
+/* 選太多：已選的亮紅框；選不夠：還沒選的亮藍色虛線框 */
+.letter.over{outline:2px solid #c0483c;outline-offset:1px}
+.letter.want{outline:2px dashed #3b7ea1;outline-offset:1px;color:#3b7ea1}
+
+.nav{position:fixed;z-index:100;width:34px;height:34px;padding:0;font-size:15px;
+  border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:var(--panel);backdrop-filter:blur(8px);border:1px solid var(--panel-line);
+  box-shadow:0 3px 10px rgba(30,37,54,.12);color:var(--ink-soft)}
+#navL{left:10px;top:50%;transform:translateY(-50%)}
+#navR{right:10px;top:50%;transform:translateY(-50%)}
+#navU{left:0;top:0}
+#navD{left:50%;transform:translateX(-50%);bottom:var(--barh)}
+
+#tools{position:fixed;z-index:100;left:10px;bottom:var(--barh);
+  display:grid;grid-template-columns:auto auto;gap:5px}
+#tools button{font-size:11.5px;padding:5px 8px}
+#zoom{position:fixed;z-index:100;right:10px;bottom:var(--barh);
+  display:flex;flex-direction:column;gap:4px}
+#zoom button{width:34px;padding:4px 0;font-family:"Space Grotesk",sans-serif;font-weight:700}
+
+#bar{position:fixed;z-index:99;left:0;right:0;bottom:0;
+  background:rgba(255,255,255,.94);backdrop-filter:blur(8px);
+  border-top:1px solid var(--panel-line);
+  padding:5px 12px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;
+  font-size:12px;line-height:1.35;color:var(--ink-soft);max-height:44px;overflow:hidden}
+#stats{display:flex;gap:12px;flex:0 0 auto;font-family:"Space Grotesk",sans-serif;align-items:baseline}
+#stats i{font-style:normal;color:var(--ink-soft)}
+#stats b{font-size:15px;color:var(--ink)}
+#stats b.ok{color:var(--enc-line)}
+#stats b.no{color:var(--warn)}
+#hint{flex:1 1 200px;min-width:0}
+
+#toast{position:fixed;left:50%;bottom:calc(var(--barh) + 46px);transform:translateX(-50%) translateY(12px);
+  z-index:200;background:var(--ink);color:#fff;padding:10px 20px;border-radius:999px;
+  font-size:14px;font-weight:500;opacity:0;pointer-events:none;
+  transition:opacity .25s,transform .25s}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.win{background:#2e8a6e}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div id="grid"></div>
+<div id="world"></div>
+
+<div class="panel" id="topbar">
+  <div class="row" id="modeRow">
+    <span class="eyebrow">玩法</span>
+    <button class="pill" data-mode="rect">拚長方形</button>
+    <button class="pill" data-mode="repl">自我複製</button>
+    <button class="pill" data-mode="fence">圍面積</button>
+    <button class="pill" data-mode="congr">三組同形</button>
+  </div>
+  <div class="row" id="optRow"></div>
+  <div class="row" id="optRow2"></div>
+</div>
+
+<button class="nav" id="navU" title="往上看">↑</button>
+<button class="nav" id="navD" title="往下看">↓</button>
+<button class="nav" id="navL" title="往左看">←</button>
+<button class="nav" id="navR" title="往右看">→</button>
+
+<div id="tools">
+  <button id="btnRotate">旋轉 R</button>
+  <button id="btnFlip">翻面 F</button>
+  <button id="btnReturn">收回</button>
+  <button id="btnReset">重來</button>
+</div>
+
+<div id="zoom">
+  <button id="zIn" title="放大">＋</button>
+  <button id="z0" title="回到預設大小並置中">0</button>
+  <button id="zOut" title="縮小">−</button>
+</div>
+
+<div id="bar"><div id="stats"></div><div id="hint"></div></div>
+<div id="toast"></div>
+
+<script>
+/* ==========================================================
+   五連方定義
+   ========================================================== */
+const PENTO={
+ F:[[0,1],[0,2],[1,0],[1,1],[2,1]], I:[[0,0],[1,0],[2,0],[3,0],[4,0]],
+ L:[[0,0],[1,0],[2,0],[3,0],[3,1]], N:[[0,1],[1,1],[2,0],[2,1],[3,0]],
+ P:[[0,0],[0,1],[1,0],[1,1],[2,0]], T:[[0,0],[0,1],[0,2],[1,1],[2,1]],
+ U:[[0,0],[0,2],[1,0],[1,1],[1,2]], V:[[0,0],[1,0],[2,0],[2,1],[2,2]],
+ W:[[0,0],[1,0],[1,1],[2,1],[2,2]], X:[[0,1],[1,0],[1,1],[1,2],[2,1]],
+ Y:[[0,1],[1,0],[1,1],[2,1],[3,1]], Z:[[0,0],[0,1],[1,1],[2,1],[2,2]]};
+const LETTERS=Object.keys(PENTO);
+const COLOR={F:'#d9544d',I:'#3d7fbf',L:'#e08a2e',N:'#7a5cb5',P:'#2e9e78',T:'#c8437f',
+ U:'#5aa6c4',V:'#8a7b3f',W:'#a4483d',X:'#4a5aa8',Y:'#3f9440',Z:'#b76a2c'};
+const NO_DOUBLE=['V','X'];
+const FENCE_PRESETS={4:['I','L','P','T'],6:['I','L','P','T','F','X'],
+ 8:['I','L','P','T','F','X','Y','N'],10:['I','L','P','T','F','X','Y','N','U','V'],12:LETTERS.slice()};
+const RECT_SOL={'3x20':2,'4x15':368,'5x12':1010,'6x10':2339};
+const CONGR_DEFAULT=['L','N','P','U','V','W','X','Y','Z'];
+
+const nrm=cs=>{const mr=Math.min(...cs.map(c=>c[0])),mc=Math.min(...cs.map(c=>c[1]));
+  return cs.map(c=>[c[0]-mr,c[1]-mc]).sort((a,b)=>a[0]-b[0]||a[1]-b[1])};
+const key=cs=>cs.map(c=>c.join(',')).join(' ');
+function orientations(cs){const m=new Map();
+  for(let f=0;f<2;f++){let w=f?cs.map(c=>[c[0],-c[1]]):cs.slice();
+    for(let r=0;r<4;r++){w=w.map(c=>[c[1],-c[0]]);const n=nrm(w);if(!m.has(key(n)))m.set(key(n),n)}}
+  return [...m.values()]}
+const ORI={};LETTERS.forEach(L=>ORI[L]=orientations(PENTO[L]));
+const bbox=cs=>[Math.max(...cs.map(c=>c[0]))+1,Math.max(...cs.map(c=>c[1]))+1];
+function scaleShape(cs,k){const o=[];cs.forEach(([r,c])=>{
+  for(let a=0;a<k;a++)for(let b=0;b<k;b++)o.push([r*k+a,c*k+b])});return nrm(o)}
+function canon(cells){let best=null;
+  for(let f=0;f<2;f++){let w=f?cells.map(c=>[c[0],-c[1]]):cells.slice();
+    for(let r=0;r<4;r++){w=w.map(c=>[c[1],-c[0]]);const k=key(nrm(w));if(best===null||k<best)best=k}}
+  return best}
+
+/* ==========================================================
+   狀態
+   ========================================================== */
+const WORLD={rows:110,cols:110}, HOME=24, PAN_STEP=5;
+/* 預設格子大小：以 4×15（寬 15 格）一開啟就要完整落在畫面內為準，桌機上限 30 */
+const defaultCell=()=>Math.max(12,Math.min(30,Math.floor((innerWidth-24)/16)));
+const S={mode:'rect',rectSize:[6,10],replScale:2,replLetter:'W',
+  fenceCount:4,fenceSet:['I','L','P','T'],congrSet:CONGR_DEFAULT.slice(),
+  cell:defaultCell(),offX:0,offY:0,pieces:[],selected:null,contentW:24,
+  target:null,targetCells:null,stageMap:new Map(),best:{}};
+try{S.best=JSON.parse(localStorage.getItem('pentomino-best')||'{}')}catch(e){S.best={}}
+const saveBest=()=>{try{localStorage.setItem('pentomino-best',JSON.stringify(S.best))}catch(e){}};
+
+const world=document.getElementById('world'), gridEl=document.getElementById('grid');
+const $=id=>document.getElementById(id);
+
+const activeLetters=()=>
+  S.mode==='rect' ? LETTERS.slice() :
+  S.mode==='repl' ? (S.replScale===2?LETTERS.slice():LETTERS.filter(l=>l!==S.replLetter)) :
+  S.mode==='fence'? S.fenceSet.slice() : S.congrSet.slice();
+
+function targetShape(){
+  if(S.mode==='rect'){const[h,w]=S.rectSize,o=[];
+    for(let r=0;r<h;r++)for(let c=0;c<w;c++)o.push([r,c]);return o}
+  if(S.mode==='repl')return scaleShape(PENTO[S.replLetter],S.replScale);
+  return null;
+}
+
+/* ---------- 佈局：世界很大，靠平移看，不再壓縮格子 ---------- */
+function setupBoard(){
+  const letters=activeLetters(), tgt=targetShape();
+  const visCols=Math.max(10,Math.floor((innerWidth-20)/S.cell)-1);
+  let row=HOME, tOrigin=null, wrap=Math.min(24,visCols);
+  if(tgt){const[th,tw]=bbox(tgt); wrap=Math.max(tw,Math.min(24,visCols));
+    tOrigin=[row,HOME]; row+=th+2;}
+  else row=HOME+(S.mode==='fence'?16:12);
+  const stage=[]; let r=row,c=HOME,lineH=0,maxC=0;
+  for(const L of letters){const[h,w]=bbox(ORI[L][0]);
+    if(c-HOME+w>wrap){c=HOME;r+=lineH+1;lineH=0}
+    stage.push({L,r,c}); c+=w+1; maxC=Math.max(maxC,c-HOME-1); lineH=Math.max(lineH,h)}
+  S.contentW=Math.max(tgt?bbox(tgt)[1]:0, maxC, 1);
+  S.stageMap=new Map(stage.map(s=>[s.L,s]));
+  if(tgt&&tOrigin){
+    S.targetCells=tgt.map(([a,b])=>[a+tOrigin[0],b+tOrigin[1]]);
+    S.target=new Set(S.targetCells.map(([a,b])=>a+','+b));
+  }else{S.target=null;S.targetCells=null}
+  S.pieces=stage.map(s=>({L:s.L,ori:0,r:s.r,c:s.c,staged:true}));
+  S.selected=null; won=false;
+  centerView(); render();
+}
+function centerView(){
+  const anchorR=S.targetCells?S.targetCells[0][0]:HOME+6;
+  const w=(S.contentW||24)*S.cell;
+  S.offX=HOME*S.cell-Math.max(12,(innerWidth-w)/2);
+  const topGap=(document.getElementById('topbar').offsetHeight||110)+56;
+  S.offY=anchorR*S.cell-topGap;
+  clampPan();
+}
+function clampPan(){
+  const mx=Math.max(0,WORLD.cols*S.cell-innerWidth), my=Math.max(0,WORLD.rows*S.cell-innerHeight);
+  S.offX=Math.min(mx,Math.max(0,S.offX)); S.offY=Math.min(my,Math.max(0,S.offY));
+}
+function pan(dx,dy){S.offX+=dx*S.cell;S.offY+=dy*S.cell;clampPan();render()}
+const CELL_MIN=12, CELL_MAX=52;
+/* 以螢幕上某一點為錨點縮放：那一點底下的格子不會跑掉 */
+function zoomAt(nc,sx,sy){
+  const n=Math.max(CELL_MIN,Math.min(CELL_MAX,Math.round(nc)));
+  if(n===S.cell)return false;
+  const wx=(S.offX+sx)/S.cell, wy=(S.offY+sy)/S.cell;
+  S.cell=n; document.documentElement.style.setProperty('--cell',n+'px');
+  S.offX=wx*n-sx; S.offY=wy*n-sy; clampPan(); render(); return true;
+}
+function setCell(nc,recenter){
+  if(recenter){
+    S.cell=Math.max(CELL_MIN,Math.min(CELL_MAX,Math.round(nc)));
+    document.documentElement.style.setProperty('--cell',S.cell+'px');
+    centerView(); render(); return;
+  }
+  zoomAt(nc,innerWidth/2,innerHeight/2);
+}
+
+/* ==========================================================
+   繪製
+   ========================================================== */
+const X=c=>c*S.cell-S.offX, Y=r=>r*S.cell-S.offY;
+const cellsOf=p=>ORI[p.L][p.ori].map(([r,c])=>[r+p.r,c+p.c]);
+function occupiedMap(ex){const m=new Map();
+  S.pieces.forEach((p,i)=>{if(i!==ex)cellsOf(p).forEach(([r,c])=>m.set(r+','+c,i))});return m}
+
+function render(){
+  gridEl.style.backgroundPosition=`${-S.offX}px ${-S.offY}px`;
+  world.innerHTML=''; const cs=S.cell, f=document.createDocumentFragment();
+  const box=(cls,r,c)=>{const d=document.createElement('div');d.className=cls;
+    d.style.cssText=`left:${X(c)+1}px;top:${Y(r)+1}px;width:${cs-1}px;height:${cs-1}px`;return d};
+
+  if(S.targetCells)S.targetCells.forEach(([r,c])=>f.appendChild(box('target-cell',r,c)));
+  if(S.mode==='fence')enclosedCells().forEach(k=>{const[r,c]=k.split(',').map(Number);
+    f.appendChild(box('enc-cell',r,c))});
+  if(S.mode==='congr')drawGroups(f);
+
+  S.pieces.forEach((p,i)=>{
+    const el=document.createElement('div');
+    el.className='piece'+(S.selected===i?' selected':'')+(p.staged?' staged':'');
+    el.dataset.i=i;
+    const cells=ORI[p.L][p.ori], [h,w]=bbox(cells);
+    el.style.cssText=`left:${X(p.c)}px;top:${Y(p.r)}px;width:${w*cs}px;height:${h*cs}px`;
+    cells.forEach(([r,c])=>{const d=document.createElement('div');d.className='pcell';
+      d.style.cssText=`left:${c*cs+1}px;top:${r*cs+1}px;width:${cs-2}px;height:${cs-2}px;background:${COLOR[p.L]}`;
+      el.appendChild(d)});
+    const lab=document.createElement('div');lab.className='label';
+    const[lr,lc]=cells[Math.floor(cells.length/2)];
+    lab.style.cssText=`left:${lc*cs}px;top:${lr*cs}px;width:${cs}px;height:${cs}px;font-size:${Math.round(cs*.46)}px`;
+    lab.textContent=p.L; el.appendChild(lab);
+    f.appendChild(el);
+  });
+  world.appendChild(f);
+  updateBar();
+}
+
+/* ==========================================================
+   圍面積：牆一定要邊對邊才算封住
+   → 空格用「八方向」灌水，斜角縫會漏
+   ========================================================== */
+function wallCells(){const s=new Set();
+  S.pieces.forEach(p=>{if(!p.staged)cellsOf(p).forEach(([r,c])=>s.add(r+','+c))});return s}
+const DIR8=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+function enclosedCells(){
+  const occ=wallCells(); if(!occ.size)return[];
+  let a=1e9,b=-1e9,c0=1e9,d=-1e9;
+  occ.forEach(k=>{const[r,c]=k.split(',').map(Number);
+    a=Math.min(a,r);b=Math.max(b,r);c0=Math.min(c0,c);d=Math.max(d,c)});
+  a--;b++;c0--;d++;
+  const seen=new Set([a+','+c0]), st=[[a,c0]];
+  while(st.length){const[r,c]=st.pop();
+    for(const[dr,dc]of DIR8){const nr=r+dr,nc=c+dc,k=nr+','+nc;
+      if(nr<a||nr>b||nc<c0||nc>d||seen.has(k)||occ.has(k))continue;
+      seen.add(k);st.push([nr,nc])}}
+  const out=[];
+  for(let r=a;r<=b;r++)for(let c=c0;c<=d;c++){const k=r+','+c;
+    if(!occ.has(k)&&!seen.has(k))out.push(k)}
+  return out;
+}
+
+/* ==========================================================
+   三組同形：碰在一起（邊對邊）的片自動成一群
+   ========================================================== */
+function groups(){
+  const placed=S.pieces.filter(p=>!p.staged);
+  if(!placed.length)return[];
+  const owner=new Map();
+  placed.forEach((p,gi)=>cellsOf(p).forEach(([r,c])=>owner.set(r+','+c,gi)));
+  const par=placed.map((_,i)=>i);
+  const find=x=>{while(par[x]!==x){par[x]=par[par[x]];x=par[x]}return x};
+  placed.forEach((p,gi)=>cellsOf(p).forEach(([r,c])=>{
+    [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dr,dc])=>{
+      const n=owner.get((r+dr)+','+(c+dc));
+      if(n!==undefined&&n!==gi){const a=find(gi),b=find(n);if(a!==b)par[b]=a}})}));
+  const m=new Map();
+  placed.forEach((p,gi)=>{const root=find(gi);
+    if(!m.has(root))m.set(root,{n:0,cells:[]});
+    const g=m.get(root); g.n++; g.cells.push(...cellsOf(p))});
+  return [...m.values()].map(g=>({...g,canon:canon(g.cells)}));
+}
+function congrState(){
+  const gs=groups(), full=gs.filter(g=>g.n===3);
+  const ref=full.length?full[0].canon:null;
+  const ok=gs.length===3&&gs.every(g=>g.n===3)&&new Set(gs.map(g=>g.canon)).size===1;
+  return {gs,ref,ok};
+}
+function drawGroups(frag){
+  const{gs,ref}=congrState(), cs=S.cell;
+  gs.forEach(g=>{
+    const set=new Set(g.cells.map(c=>c.join(',')));
+    const good=g.n===3&&ref&&g.canon===ref;
+    const col=g.n>3?'#c0483c':good?'#2e8a6e':'#c98a2e';
+    g.cells.forEach(([r,c])=>{
+      [[-1,0,'t'],[1,0,'b'],[0,-1,'l'],[0,1,'r']].forEach(([dr,dc,side])=>{
+        if(set.has((r+dr)+','+(c+dc)))return;
+        const T=Y(r), Lp=X(c);
+        const st={t:`left:${Lp-1}px;top:${T-3}px;width:${cs+2}px;height:3px`,
+                  b:`left:${Lp-1}px;top:${T+cs}px;width:${cs+2}px;height:3px`,
+                  l:`left:${Lp-3}px;top:${T-1}px;width:3px;height:${cs+2}px`,
+                  r:`left:${Lp+cs}px;top:${T-1}px;width:3px;height:${cs+2}px`}[side];
+        const d=document.createElement('div'); d.className='edge';
+        d.style.cssText=st+`;background:${col}`; frag.appendChild(d);
+      })});
+    const mr=Math.min(...g.cells.map(c=>c[0]));
+    const mc=Math.min(...g.cells.filter(c=>c[0]===mr).map(c=>c[1]));
+    const bd=document.createElement('div'); bd.className='badge';
+    bd.style.cssText=`left:${X(mc)}px;top:${Y(mr)}px;background:${col}`;
+    bd.textContent=g.n+' 片'+(g.n===3?(good?' ✓':' ✗'):'');
+    frag.appendChild(bd);
+  });
+}
+
+/* ==========================================================
+   拖曳 / 旋轉 / 翻面 / 平移
+   ========================================================== */
+let drag=null, panning=null, pinch=null;
+const pts=new Map();                      // 目前壓在畫面上的手指
+function twoFinger(){
+  const a=[...pts.values()];
+  return {x:(a[0].x+a[1].x)/2, y:(a[0].y+a[1].y)/2,
+          d:Math.hypot(a[0].x-a[1].x, a[0].y-a[1].y)};
+}
+/* 第二根手指落下 → 放棄拖曳／單指平移，改成雙指縮放 */
+function startPinch(){
+  if(drag){const{el,i,or,oc}=drag, p=S.pieces[i];
+    p.r=or; p.c=oc; drag=null; el.classList.remove('dragging')}
+  panning=null; world.classList.remove('panning');
+  const m=twoFinger();
+  pinch={d0:m.d||1, cell0:S.cell, wx:(S.offX+m.x)/S.cell, wy:(S.offY+m.y)/S.cell};
+  render();
+}
+
+world.addEventListener('pointerdown',e=>{
+  pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pts.size===2){startPinch();return}
+  if(pts.size>2)return;
+  const el=e.target.closest('.piece');
+  if(!el){panning={x:e.clientX,y:e.clientY,ox:S.offX,oy:S.offY,moved:false};
+    world.setPointerCapture(e.pointerId); world.classList.add('panning'); return}
+  const i=+el.dataset.i, p=S.pieces[i];
+  const wasSel=(S.selected===i);
+  S.selected=i; drag={i,el,sx:e.clientX,sy:e.clientY,or:p.r,oc:p.c,moved:false,wasSel};
+  el.classList.add('dragging','selected'); el.setPointerCapture(e.pointerId);
+  world.appendChild(el);
+});
+world.addEventListener('pointermove',e=>{
+  if(pts.has(e.pointerId))pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pinch&&pts.size>=2){
+    const m=twoFinger(); if(!m.d)return;
+    const n=Math.max(CELL_MIN,Math.min(CELL_MAX,Math.round(pinch.cell0*m.d/pinch.d0)));
+    if(n!==S.cell){S.cell=n;document.documentElement.style.setProperty('--cell',n+'px')}
+    S.offX=pinch.wx*S.cell-m.x; S.offY=pinch.wy*S.cell-m.y;   // 兩指同時也能推動畫面
+    clampPan(); render(); return;
+  }
+  if(panning){const dx=e.clientX-panning.x,dy=e.clientY-panning.y;
+    if(!panning.moved&&Math.hypot(dx,dy)>4)panning.moved=true;
+    if(panning.moved){S.offX=panning.ox-dx;S.offY=panning.oy-dy;clampPan();render()}
+    return}
+  if(!drag)return;
+  const dx=e.clientX-drag.sx, dy=e.clientY-drag.sy;
+  if(!drag.moved&&Math.hypot(dx,dy)>5)drag.moved=true;
+  if(drag.moved){drag.el.style.left=(X(drag.oc)+dx)+'px';drag.el.style.top=(Y(drag.or)+dy)+'px'}
+});
+['pointerup','pointercancel'].forEach(ev=>world.addEventListener(ev,end));
+function end(e){
+  if(e&&e.pointerId!==undefined)pts.delete(e.pointerId);
+  if(pinch){if(pts.size<2)pinch=null; return}      // 手指放開前不做任何放置判定
+  if(panning){const m=panning.moved; panning=null; world.classList.remove('panning');
+    if(!m){S.selected=null;render()} return}
+  if(!drag)return;
+  const{i,el,moved,or,oc,wasSel}=drag, p=S.pieces[i]; drag=null; el.classList.remove('dragging');
+  if(!moved){ if(wasSel)rotate(i); else render(); return }
+  const nr=Math.round((parseFloat(el.style.top)+S.offY)/S.cell);
+  const nc=Math.round((parseFloat(el.style.left)+S.offX)/S.cell);
+  if(!commit(i,nr,nc,p.ori)){p.r=or;p.c=oc}
+  render();
+}
+/* 桌機：滾輪／觸控板也能以游標為中心縮放 */
+world.addEventListener('wheel',e=>{
+  e.preventDefault();
+  zoomAt(S.cell+(e.deltaY<0?2:-2), e.clientX, e.clientY);
+},{passive:false});
+function commit(i,r,c,ori){
+  const p=S.pieces[i], sh=ORI[p.L][ori], [h,w]=bbox(sh);
+  if(r<0||c<0||r+h>WORLD.rows||c+w>WORLD.cols)return false;
+  const cells=sh.map(([a,b])=>[a+r,b+c]), occ=occupiedMap(i);
+  for(const[a,b]of cells)if(occ.has(a+','+b))return false;
+  p.r=r;p.c=c;p.ori=ori;
+  p.staged = S.target ? !cells.every(([a,b])=>S.target.has(a+','+b)) : false;
+  checkWin(); return true;
+}
+function transform(i,fn){
+  const p=S.pieces[i], oris=ORI[p.L];
+  const t=key(nrm(fn(oris[p.ori])));
+  reanchor(i, oris.findIndex(o=>key(o)===t));
+}
+const rotate=i=>transform(i,cs=>cs.map(([r,c])=>[c,-r]));
+const flip  =i=>transform(i,cs=>cs.map(([r,c])=>[r,-c]));
+function reanchor(i,ni){
+  const p=S.pieces[i]; if(ni<0||ni===p.ori){render();return}
+  const[oh,ow]=bbox(ORI[p.L][p.ori]), [nh,nw]=bbox(ORI[p.L][ni]);
+  const br=p.r+Math.round((oh-nh)/2), bc=p.c+Math.round((ow-nw)/2);
+  for(const[dr,dc]of[[0,0],[0,-1],[0,1],[-1,0],[1,0],[-1,-1],[1,1],[-1,1],[1,-1],[0,-2],[0,2],[-2,0],[2,0]])
+    if(commit(i,br+dr,bc+dc,ni)){render();return}
+  toast('這裡空間不夠，先拖開一點再轉'); render();
+}
+
+$('btnRotate').onclick=()=>S.selected!=null?rotate(S.selected):toast('先點一片五連方');
+$('btnFlip').onclick  =()=>S.selected!=null?flip(S.selected):toast('先點一片五連方');
+$('btnReturn').onclick=()=>{
+  if(S.selected==null){toast('先點一片五連方');return}
+  const p=S.pieces[S.selected], s=S.stageMap.get(p.L);
+  if(s){p.r=s.r;p.c=s.c;p.ori=0;p.staged=true;render()}};
+$('btnReset').onclick =()=>{setupBoard();toast('已全部重來')};
+$('zIn').onclick =()=>setCell(S.cell+4);
+$('zOut').onclick=()=>setCell(S.cell-4);
+$('z0').onclick  =()=>setCell(defaultCell(),true);
+$('navU').onclick=()=>pan(0,-PAN_STEP); $('navD').onclick=()=>pan(0,PAN_STEP);
+$('navL').onclick=()=>pan(-PAN_STEP,0); $('navR').onclick=()=>pan(PAN_STEP,0);
+addEventListener('keydown',e=>{
+  const k=e.key.toLowerCase();
+  if(k==='arrowup'){e.preventDefault();pan(0,-2)}
+  if(k==='arrowdown'){e.preventDefault();pan(0,2)}
+  if(k==='arrowleft'){e.preventDefault();pan(-2,0)}
+  if(k==='arrowright'){e.preventDefault();pan(2,0)}
+  if(S.selected==null)return;
+  if(k==='r'){e.preventDefault();rotate(S.selected)}
+  if(k==='f'){e.preventDefault();flip(S.selected)}
+});
+
+/* ==========================================================
+   狀態列
+   ========================================================== */
+let won=false;
+function checkWin(){
+  if(S.target){
+    const occ=new Set();
+    S.pieces.forEach(p=>cellsOf(p).forEach(([r,c])=>{if(S.target.has(r+','+c))occ.add(r+','+c)}));
+    if(occ.size===S.target.size&&!won){won=true;setTimeout(()=>toast('完成！🎉',true),60)}
+    else if(occ.size<S.target.size)won=false;
+  }else if(S.mode==='congr'){
+    const{ok}=congrState();
+    if(ok&&!won){won=true;setTimeout(()=>toast('三組全等，完成！🎉',true),60)}
+    if(!ok)won=false;
+  }
+}
+const filledCount=()=>{if(!S.target)return 0;const o=new Set();
+  S.pieces.forEach(p=>cellsOf(p).forEach(([r,c])=>{if(S.target.has(r+','+c))o.add(r+','+c)}));
+  return o.size};
+
+function updateBar(){
+  const st=$('stats'), hn=$('hint');
+  const cell=(l,v,c)=>`<span><i>${l}</i> <b class="${c||''}">${v}</b></span>`;
+  if(S.mode==='rect'){
+    const k=S.rectSize[0]+'x'+S.rectSize[1];
+    st.innerHTML=cell('已填',filledCount()+' / '+S.target.size);
+    hn.textContent=`12 片全用上。${k} 共 ${RECT_SOL[k].toLocaleString()} 種解。拖曳空白處拉動格紙，兩指或滾輪縮放。`;
+  }else if(S.mode==='repl'){
+    st.innerHTML=cell('已填',filledCount()+' / '+S.target.size);
+    hn.textContent=S.replScale===2
+      ?`拚出 ${S.replLetter} 的兩倍放大版，用 4 片不重複（可含 ${S.replLetter} 自己）。`
+      :`拚出 ${S.replLetter} 的三倍放大版，用其餘 11 片中的 9 片。`;
+  }else if(S.mode==='fence'){
+    const used=S.pieces.filter(p=>!p.staged).length, area=enclosedCells().length;
+    const bk='fence-'+S.fenceSet.slice().sort().join('');
+    if(area>(S.best[bk]||0)){S.best[bk]=area;saveBest()}
+    st.innerHTML=cell('圍出面積',area)+cell('已放',used+' / '+S.fenceSet.length)+cell('最佳',S.best[bk]||0);
+    hn.textContent='牆要邊對邊接起來才算封住；只靠斜角相碰會漏。';
+  }else{
+    const{gs,ok}=congrState();
+    const sizes=gs.length?gs.map(g=>g.n).sort((a,b)=>b-a).join('+'):'—';
+    st.innerHTML=cell('群數',gs.length,gs.length===3?'ok':'')
+      +cell('各群',sizes)+cell('全等',ok?'是':'否',ok?'ok':'no');
+    hn.textContent='邊對邊碰在一起的片自動算同一群。目標：三群、每群 3 片、形狀全等（可轉可翻）。';
+  }
+}
+let tt; function toast(m,w){const t=$('toast');
+  t.textContent=m;t.className='show'+(w?' win':'');clearTimeout(tt);
+  tt=setTimeout(()=>t.className='',w?2600:1800)}
+
+/* ==========================================================
+   控制列
+   ========================================================== */
+const same=(a,b)=>a.length===b.length&&a.every(x=>b.includes(x));
+function buildControls(){
+  document.querySelectorAll('#modeRow button').forEach(b=>{
+    b.classList.toggle('on',b.dataset.mode===S.mode);
+    b.onclick=()=>{S.mode=b.dataset.mode;buildControls();setupBoard()}});
+  const r1=$('optRow'), r2=$('optRow2'); r1.innerHTML='';r2.innerHTML='';
+  const eb=t=>{const s=document.createElement('span');s.className='eyebrow';s.textContent=t;return s};
+  const mk=(txt,cls,on,fn,dis)=>{const b=document.createElement('button');
+    b.className=cls;b.textContent=txt;b.classList.toggle('on',!!on);
+    if(dis)b.disabled=true;else b.onclick=fn;return b};
+
+  if(S.mode==='rect'){
+    r1.appendChild(eb('尺寸'));
+    [[3,20],[4,15],[5,12],[6,10]].forEach(([h,w])=>r1.appendChild(
+      mk(`${h} × ${w}`,'pill',S.rectSize[0]===h,()=>{S.rectSize=[h,w];buildControls();setupBoard()})));
+  }
+  if(S.mode==='repl'){
+    r1.appendChild(eb('倍率'));
+    [2,3].forEach(k=>r1.appendChild(mk(k+' 倍','pill',S.replScale===k,()=>{
+      S.replScale=k; if(k===2&&NO_DOUBLE.includes(S.replLetter))S.replLetter='W';
+      buildControls();setupBoard()})));
+    r2.appendChild(eb('形狀'));
+    LETTERS.forEach(L=>{const dead=S.replScale===2&&NO_DOUBLE.includes(L);
+      const b=mk(L,'letter'+(dead?' dead':''),!dead&&S.replLetter===L,
+        ()=>{S.replLetter=L;buildControls();setupBoard()},dead);
+      if(dead)b.title=L+' 沒有兩倍解'; r2.appendChild(b)});
+  }
+  if(S.mode==='fence'){
+    r1.appendChild(eb('難度'));
+    [4,6,8,10,12].forEach(n=>r1.appendChild(mk(n===12?'全用 12 片':n+' 片','pill',
+      S.fenceCount===n,
+      ()=>{S.fenceCount=n;S.fenceSet=FENCE_PRESETS[n].slice();buildControls();setupBoard()})));
+    r1.appendChild(countTag(S.fenceSet.length,S.fenceCount));
+    r2.appendChild(eb('自選'));
+    LETTERS.forEach(L=>{const sel=S.fenceSet.includes(L);
+      r2.appendChild(mk(L,'letter'+mark(sel,S.fenceSet.length,S.fenceCount),sel,()=>{
+        const i=S.fenceSet.indexOf(L);
+        if(i>=0)S.fenceSet.splice(i,1); else S.fenceSet.push(L);
+        buildControls();setupBoard()}))});
+  }
+  if(S.mode==='congr'){
+    r1.appendChild(eb('片組'));
+    r1.appendChild(mk('預設（保證有解）','pill',same(S.congrSet,CONGR_DEFAULT),
+      ()=>{S.congrSet=CONGR_DEFAULT.slice();buildControls();setupBoard()}));
+    r1.appendChild(countTag(S.congrSet.length,9));
+    r2.appendChild(eb('自選'));
+    LETTERS.forEach(L=>{const sel=S.congrSet.includes(L);
+      r2.appendChild(mk(L,'letter'+mark(sel,S.congrSet.length,9),sel,()=>{
+        const i=S.congrSet.indexOf(L);
+        if(i>=0)S.congrSet.splice(i,1); else S.congrSet.push(L);
+        buildControls();setupBoard()}))});
+  }
+  requestAnimationFrame(placeNavU);
+}
+/* 兩個模式共用：片數不對時只提醒，不擋操作 */
+function mark(selected,len,target){
+  if(len>target&&selected)return ' over';
+  if(len<target&&!selected)return ' want';
+  return '';
+}
+function countTag(len,target){
+  const s=document.createElement('span'); s.className='eyebrow';
+  s.textContent=`已選 ${len} / ${target}`;
+  s.style.color = len===target?'#2e8a6e' : len>target?'#c0483c' : '#3b7ea1';
+  return s;
+}
+function placeNavU(){
+  const t=$('topbar').getBoundingClientRect();
+  const u=$('navU');
+  u.style.left=(t.left+t.width/2-17)+'px';
+  u.style.top=(t.bottom+8)+'px';
+}
+function setBarH(){
+  document.documentElement.style.setProperty('--barh',($('bar').offsetHeight+8)+'px');
+}
+let rz; addEventListener('resize',()=>{clearTimeout(rz);
+  rz=setTimeout(()=>{clampPan();render();placeNavU();setBarH()},150)});
+
+buildControls(); setupBoard(); setBarH(); placeNavU();
+new ResizeObserver(()=>{setBarH();placeNavU()}).observe($('bar'));
+</script>
+</body>
+</html>

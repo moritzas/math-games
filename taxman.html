@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>稅收遊戲 Taxman</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f7f6f2; --rule:#e2dfd5; --rule-strong:#c9c5b8;
+  --ink:#1e2536; --ink-soft:#6a7080;
+  --home:#2e7d5b; --home-bg:#e6f2ec;
+  --emp:#a8372c;  --emp-bg:#f7e8e5;
+  --panel-line:#d5d2c7;
+  --cw:42px; --ch:40px; --cf:16px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:"Noto Sans TC","Space Grotesk",system-ui,sans-serif;padding:0 0 92px}
+
+header{padding:16px 16px 10px;max-width:1140px;margin:0 auto}
+h1{font-family:"Space Grotesk",sans-serif;font-size:19px;font-weight:700;margin:0;letter-spacing:-.01em}
+h1 span{font-weight:400;color:var(--ink-soft);font-size:13px;margin-left:8px}
+.controls{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:11px}
+.eyebrow{font-family:"Space Grotesk",sans-serif;font-size:10px;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--ink-soft);font-weight:500;margin-right:2px}
+button{font-family:inherit;font-size:13px;color:var(--ink);background:#fff;
+  border:1px solid var(--panel-line);border-radius:7px;padding:5px 10px;cursor:pointer;
+  transition:background .12s,border-color .12s,color .12s}
+button:hover:not(:disabled){background:#f0eee7}
+button:focus-visible,input:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.pill{padding:4px 9px;font-size:12.5px}
+.step{font-family:"Space Grotesk",sans-serif;font-weight:700;width:30px;padding:4px 0;text-align:center}
+.step10{font-family:"Space Grotesk",sans-serif;font-weight:700;width:42px;padding:4px 0;
+  text-align:center;font-size:12px}
+#nInput{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:14px;width:58px;
+  text-align:center;padding:5px 4px;border:1px solid var(--panel-line);border-radius:7px;
+  background:#fff;color:var(--ink)}
+#src{font-size:11px;color:var(--ink-soft);margin-top:7px;display:none}
+#src.show{display:block}
+#src a{color:var(--ink-soft)}
+
+/* ---------- 帳冊 ---------- */
+#ledger{display:grid;max-width:1140px;margin:6px auto 0;padding:0 12px;align-items:start}
+.hdr{font-family:"Space Grotesk",sans-serif;font-size:10.5px;letter-spacing:.13em;
+  text-transform:uppercase;font-weight:700;padding:0 8px 7px;
+  border-bottom:1.5px solid var(--rule-strong);position:sticky;top:0;
+  background:var(--paper);z-index:3}
+.hdr.home{color:var(--home)}
+.hdr.emp{color:var(--emp);text-align:right}
+.hdr.pool{color:var(--ink-soft);text-align:center}
+
+.cell{padding:7px 8px;border-bottom:1px solid var(--rule);min-height:52px;
+  display:flex;flex-wrap:wrap;gap:5px;align-items:center;align-content:center}
+.cell.emp{justify-content:flex-end}
+.cell.fresh{background:#fffdf2}
+.turnno{font-family:"Space Grotesk",sans-serif;font-size:10px;font-weight:700;
+  color:var(--ink-soft);opacity:.55;min-width:20px}
+.sweep{font-size:11px;color:var(--emp);font-weight:500}
+
+#poolWrap{align-self:stretch;border-left:1px solid var(--rule);border-right:1px solid var(--rule)}
+#ledger.mob #poolWrap{border-left:0;border-right:0;border-bottom:1px solid var(--rule)}
+#pool{position:sticky;top:30px;padding:13px 10px;display:flex;flex-wrap:wrap;gap:5px;
+  justify-content:center;align-content:flex-start}
+#poolNote{font-size:11.5px;color:var(--ink-soft);text-align:center;padding:0 10px 12px}
+
+/* ---------- 數字卡 ---------- */
+.card{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:var(--cf);
+  min-width:var(--cw);height:var(--ch);padding:0 6px;border-radius:7px;
+  display:flex;align-items:center;justify-content:center;
+  background:#fff;border:1.5px solid var(--rule-strong);color:var(--ink);
+  box-shadow:0 1px 2px rgba(30,37,54,.07);will-change:transform}
+.card.pick{cursor:pointer}
+.card.pick:hover{border-color:var(--home);color:var(--home);
+  transform:translateY(-2px);box-shadow:0 4px 9px rgba(46,125,91,.22)}
+.card.locked{opacity:.32;cursor:not-allowed}
+.card.kept{background:var(--home-bg);border-color:var(--home);color:var(--home)}
+.card.taxed{background:var(--emp-bg);border-color:var(--emp);color:var(--emp);
+  font-size:calc(var(--cf) - 1px);min-width:calc(var(--cw) - 5px);height:calc(var(--ch) - 5px)}
+
+/* ---------- 計分列 ---------- */
+#score{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.95);
+  backdrop-filter:blur(8px);border-top:1px solid var(--panel-line);
+  padding:9px 16px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;
+  font-family:"Space Grotesk",sans-serif;font-size:12px;color:var(--ink-soft);z-index:5}
+#score .grp{display:flex;gap:7px;align-items:baseline}
+#score b{font-size:21px;font-weight:700}
+#score .h b{color:var(--home)} #score .e b{color:var(--emp)}
+#score .msg{font-family:"Noto Sans TC",sans-serif;flex:1 1 200px;text-align:right;
+  font-size:12.5px;color:var(--ink)}
+#toast{position:fixed;left:50%;bottom:74px;transform:translateX(-50%) translateY(12px);
+  background:var(--ink);color:#fff;padding:9px 18px;border-radius:999px;font-size:13.5px;
+  opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:50}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>稅收遊戲<span>Taxman</span></h1>
+  <div class="controls" id="ctlN"></div>
+  <div class="controls" id="ctlB"></div>
+  <div id="src">理論最高分取自 OEIS
+    <a href="https://oeis.org/A019312" target="_blank" rel="noopener">A019312</a>（Taxman sequence，N = 1…1000）。</div>
+</header>
+
+<div id="ledger"></div>
+<div id="score"></div>
+<div id="toast"></div>
+
+<script>
+/* A019312 前 200 項：a(N) = N 個錢包時家中能留下的最高總額。
+   資料來源 OEIS b-file；其中 N=4..39 我另外用記憶化搜尋獨立算過，完全吻合。 */
+const OPT=[0,
+0,2,3,7,9,15,17,21,30,40,
+44,50,52,66,81,89,93,111,113,124,
+144,166,170,182,198,224,251,279,285,301,
+303,319,352,386,418,442,448,486,503,525,
+529,571,573,617,660,706,710,734,758,808,
+833,885,891,940,981,1017,1040,1098,1104,1137,
+1139,1201,1264,1296,1328,1394,1400,1468,1499,1566,
+1570,1642,1644,1718,1793,1869,1914,1991,1997,2041,
+2105,2187,2191,2263,2309,2395,2436,2496,2502,2552,
+2588,2680,2715,2809,2853,2901,2909,3007,3106,3164,
+3168,3270,3272,3332,3434,3540,3544,3652,3654,3764,
+3813,3925,3929,4043,4101,4217,4334,4452,4506,4593,
+4689,4811,4860,4984,5109,5191,5205,5301,5348,5478,
+5482,5572,5620,5754,5844,5928,5934,6072,6074,6164,
+6219,6361,6427,6523,6599,6745,6892,7040,7050,7137,
+7139,7223,7376,7530,7598,7688,7694,7852,7917,8005,
+8071,8233,8239,8403,8568,8734,8738,8906,8954,9124,
+9295,9467,9473,9647,9822,9985,10056,10234,10240,10401,
+10403,10543,10608,10744,10836,11022,11132,11320,11447,11637,
+11647,11787,11789,11983,12164,12332,12336,12471,12473,12648];
+
+const PRESETS=[10,12,15,20,24,30,50,100,200];
+const N_MIN=4, N_MAX=200;
+
+const S={N:10,pool:[],turns:[],over:false,showOpt:false,hist:[]};
+const $=id=>document.getElementById(id);
+const divisorsIn=(n,pool)=>pool.filter(d=>d<n&&n%d===0);
+const legal=n=>{for(const d of S.pool)if(d<n&&n%d===0)return true;return false};
+const sum=a=>a.reduce((x,y)=>x+y,0);
+const kept=()=>S.turns.filter(t=>t.keep).map(t=>t.keep);
+const taxed=()=>S.turns.flatMap(t=>t.tax);
+
+function cardScale(){
+  const [w,h,f] = S.N<=30 ? [42,40,16] : S.N<=60 ? [38,36,15]
+                : S.N<=110 ? [34,32,13.5] : [31,29,12.5];
+  const r=document.documentElement.style;
+  r.setProperty('--cw',w+'px'); r.setProperty('--ch',h+'px'); r.setProperty('--cf',f+'px');
+}
+function newGame(n){
+  S.N=Math.max(N_MIN,Math.min(N_MAX,n|0));
+  S.pool=Array.from({length:S.N},(_,i)=>i+1);
+  S.turns=[]; S.over=false; S.hist=[]; cardScale(); render();
+}
+const snapshot=()=>({pool:S.pool.slice(),turns:S.turns.map(t=>({...t,tax:t.tax.slice()})),over:S.over});
+
+function pick(n){
+  if(S.over)return toast('這局結束了，按「新的一局」再來');
+  if(!legal(n))return toast(`${n} 已經沒有因數留在中間了，不能選`);
+  S.hist.push(snapshot());
+  flip(()=>{
+    const tax=divisorsIn(n,S.pool), gone=new Set([n,...tax]);
+    S.pool=S.pool.filter(x=>!gone.has(x));
+    S.turns.push({keep:n,tax,fresh:true});
+    if(S.pool.length&&!S.pool.some(legal)){
+      S.turns.push({keep:null,tax:S.pool.slice(),fresh:true}); S.pool=[];
+    }
+    if(!S.pool.length)S.over=true;
+  });
+}
+function undo(){
+  if(!S.hist.length)return toast('已經回到最前面了');
+  flip(()=>{const s=S.hist.pop();S.pool=s.pool;S.turns=s.turns;S.over=s.over});
+}
+
+/* ---------- FLIP：先量位置，換完 DOM 再把卡從舊位置滑過來 ---------- */
+function flip(mutate){
+  const before=new Map();
+  document.querySelectorAll('.card').forEach(el=>before.set(el.dataset.n,el.getBoundingClientRect()));
+  S.turns.forEach(t=>t.fresh=false);
+  mutate(); render();
+  document.querySelectorAll('.card').forEach(el=>{
+    const b=before.get(el.dataset.n); if(!b)return;
+    const a=el.getBoundingClientRect();
+    const dx=b.left-a.left, dy=b.top-a.top;
+    if(Math.abs(dx)<1&&Math.abs(dy)<1)return;
+    el.style.transition='none';
+    el.style.transform=`translate(${dx}px,${dy}px)`;
+    requestAnimationFrame(()=>{
+      el.style.transition='transform .45s cubic-bezier(.22,.9,.3,1)';
+      el.style.transform='';
+    });
+  });
+}
+
+/* ---------- 繪製 ---------- */
+function cardEl(n,cls,onclick){
+  const d=document.createElement('div');
+  d.className='card '+cls; d.dataset.n=n; d.textContent=n;
+  if(onclick)d.onclick=()=>onclick(n);
+  return d;
+}
+function render(){
+  const L=$('ledger'), mob=innerWidth<640;
+  L.innerHTML=''; L.className=mob?'mob':'';
+  const T=S.turns.length;
+  L.style.gridTemplateColumns = mob ? '1fr 1fr'
+    : 'minmax(76px,.8fr) minmax(240px,2fr) minmax(120px,1.1fr)';
+  const put=(el,col,row,span)=>{el.style.gridColumn=col;
+    el.style.gridRow=span?`${row} / span ${span}`:row; L.appendChild(el)};
+  const mk=(cls,html)=>{const d=document.createElement('div');d.className=cls;
+    if(html!==undefined)d.innerHTML=html;return d};
+
+  /* 中間的待選錢包（桌機時黏在畫面上，帳冊拉長也看得到） */
+  const wrap=mk(''); wrap.id='poolWrap';
+  const inner=mk(''); inner.id='pool';
+  S.pool.forEach(n=>inner.appendChild(cardEl(n,'pick'+(legal(n)?'':' locked'),pick)));
+  if(!S.pool.length)inner.innerHTML='<span style="color:var(--ink-soft);font-size:12.5px">錢包全部分完了</span>';
+  const stick=mk(''); stick.style.cssText='position:sticky;top:30px';
+  stick.appendChild(inner);
+  const note=mk('','淡色的錢包已經沒有因數留在中間，依規則不能選。'); note.id='poolNote';
+  stick.appendChild(note); wrap.appendChild(stick);
+  inner.style.position='static';
+
+  let hRow,tRow0;
+  if(mob){ put(wrap,'1 / -1',1); hRow=2; tRow0=3; }
+  else   { hRow=1; tRow0=2; }
+  put(mk('hdr home','我家'),1,hRow);
+  if(!mob) put(mk('hdr pool','待選錢包'),2,hRow);
+  put(mk('hdr emp','皇帝'),mob?2:3,hRow);
+  if(!mob) put(wrap,2,tRow0,Math.max(1,T));
+
+  S.turns.forEach((t,i)=>{
+    const row=tRow0+i;
+    const lc=mk('cell home'+(t.fresh?' fresh':''));
+    if(t.keep){
+      const no=mk('turnno'); no.textContent=i+1; lc.appendChild(no);
+      lc.appendChild(cardEl(t.keep,'kept'));
+    }else lc.appendChild(mk('sweep','沒有因數可抽 → 全數上繳'));
+    put(lc,1,row);
+    const rc=mk('cell emp'+(t.fresh?' fresh':''));
+    t.tax.forEach(n=>rc.appendChild(cardEl(n,'taxed')));
+    put(rc,mob?2:3,row);
+  });
+  drawScore();
+}
+
+function drawScore(){
+  const h=sum(kept()), e=sum(taxed()), tot=S.N*(S.N+1)/2;
+  const best=OPT[S.N];
+  let msg='';
+  if(S.over){
+    msg = S.showOpt
+      ? (h===best?`結束 — ${h} 分，這就是最高分！`:`結束 — ${h} 分，理論最高 ${best} 分，差 ${best-h}`)
+      : `結束 — 家中留下 ${h}，佔總額 ${Math.round(h/tot*1000)/10}%`;
+  }else if(!S.turns.length) msg='選一包留在家中，它的因數會全部被抽走。';
+  $('score').innerHTML=
+    `<span class="grp h"><span>家中</span><b>${h}</b></span>`+
+    `<span class="grp e"><span>皇帝</span><b>${e}</b></span>`+
+    `<span class="grp"><span>總額</span><b style="font-size:15px">${tot}</b></span>`+
+    (S.showOpt?`<span class="grp"><span>理論最高</span><b style="font-size:15px">${best}</b></span>`:'')+
+    `<span class="msg">${msg}</span>`;
+}
+
+/* ---------- 控制列 ---------- */
+function buildControls(){
+  const a=$('ctlN'), b=$('ctlB'); a.innerHTML='';b.innerHTML='';
+  const eb=t=>{const s=document.createElement('span');s.className='eyebrow';s.textContent=t;return s};
+  const btn=(t,cls,on,fn)=>{const x=document.createElement('button');x.className=cls;x.textContent=t;
+    if(on)x.classList.add('on');x.onclick=fn;return x};
+
+  a.appendChild(eb('錢包數'));
+  PRESETS.forEach(n=>a.appendChild(btn(n,'pill',S.N===n,()=>{newGame(n);buildControls()})));
+  a.appendChild(btn('−10','step10',false,()=>{newGame(S.N-10);buildControls()}));
+  a.appendChild(btn('−','step',false,()=>{newGame(S.N-1);buildControls()}));
+  const inp=document.createElement('input');
+  inp.id='nInput'; inp.type='number'; inp.min=N_MIN; inp.max=N_MAX; inp.value=S.N;
+  const apply=()=>{const v=parseInt(inp.value,10);
+    if(!isNaN(v)&&v!==S.N){newGame(v);buildControls()} else inp.value=S.N};
+  inp.onchange=apply;
+  inp.onkeydown=ev=>{if(ev.key==='Enter'){ev.preventDefault();apply()}};
+  a.appendChild(inp);
+  a.appendChild(btn('＋','step',false,()=>{newGame(S.N+1);buildControls()}));
+  a.appendChild(btn('＋10','step10',false,()=>{newGame(S.N+10);buildControls()}));
+
+  b.appendChild(btn('新的一局','pill',false,()=>newGame(S.N)));
+  b.appendChild(btn('上一步','pill',false,undo));
+  b.appendChild(btn('顯示理論最高分','pill',S.showOpt,()=>{
+    S.showOpt=!S.showOpt; buildControls(); drawScore()}));
+  $('src').className=S.showOpt?'show':'';
+}
+
+let tt; function toast(m){const t=$('toast');t.textContent=m;t.className='show';
+  clearTimeout(tt);tt=setTimeout(()=>t.className='',2000)}
+let rz; addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(render,150)});
+
+buildControls(); newGame(10);
+</script>
+</body>
+</html>
