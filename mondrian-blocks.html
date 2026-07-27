@@ -167,6 +167,8 @@
   .card .wbtns{display:flex; gap:8px; justify-content:center; flex-wrap:wrap;}
   .card .tapaway{margin:14px 0 0; font-size:12px; color:#8a8474;}
 
+  .hud button.on{background:var(--ink); color:var(--paper); border-color:var(--ink);}
+
   @media (max-width:480px){
     .hud{gap:5px;} 
     .hud button{padding:7px 8px; font-size:12px;}
@@ -379,6 +381,10 @@
   const timerEl = document.getElementById('timer');
   const winEl = document.getElementById('win');
   const winTimeEl = document.getElementById('winTime');
+  const hint1Btn = document.getElementById('hint1Btn');
+  const hint2Btn = document.getElementById('hint2Btn');
+  const HINT1_ID = 'h';   // 1×4
+  const HINT2_ID = 'g';   // 1×5
 
   let cell = 44, trayCell = 30;
   let grid = [];               // grid[r][c] = pieceId | null
@@ -641,6 +647,7 @@
   function updateStatus(){
     const n = placedCount();
     countEl.textContent = n;
+    syncHintBtns();
     if(n === DEFS.length){ win(); }
   }
   function fmt(ms){
@@ -767,20 +774,36 @@
     return occ;
   }
 
-  function hintPlace(pieceId){
-    const target = pieces[pieceId];
-    if(!target || target.locked) return;
+  // One solution is cached per round, so every hint comes from the SAME solution
+  // (otherwise hint1 and hint2 could belong to two different solutions and not fit together).
+  let hintSolution = null;
 
-    // First try a solution that keeps what the player has already laid down;
-    // if their board can't be finished, fall back to one that only respects the fixed black pieces.
-    const keepA  = DEFS.filter(d => pieces[d.id].placed && d.id !== pieceId).map(d => d.id);
-    const availA = DEFS.filter(d => keepA.indexOf(d.id) === -1).map(d => d.id);
-    let sol = solveFrom(occFrom(keepA), availA);
+  function ensureHintSolution(){
+    if(hintSolution) return hintSolution;
+    // Prefer a solution that keeps whatever the player has already laid down.
+    const keep  = DEFS.filter(d => pieces[d.id].placed && d.id !== HINT1_ID && d.id !== HINT2_ID)
+                      .map(d => d.id);
+    const avail = DEFS.filter(d => keep.indexOf(d.id) === -1).map(d => d.id);
+    let sol = solveFrom(occFrom(keep), avail);
     if(!sol){
+      // Their board can't be finished — fall back to respecting only the fixed black pieces.
       const lockedIds = DEFS.filter(d => pieces[d.id].locked).map(d => d.id);
       const availB    = DEFS.filter(d => !pieces[d.id].locked).map(d => d.id);
       sol = solveFrom(occFrom(lockedIds), availB);
     }
+    hintSolution = sol;
+    return sol;
+  }
+  function maybeClearHintSolution(){
+    // Forget it once both hint pieces are back in the tray (or on reset).
+    if(hintSolution && !pieces[HINT1_ID].placed && !pieces[HINT2_ID].placed) hintSolution = null;
+  }
+
+  function hintPlace(pieceId){
+    const target = pieces[pieceId];
+    if(!target || target.locked) return;
+
+    const sol = ensureHintSolution();
     if(!sol){ flashMessage('這一關算不出解,請按「重來」。'); return; }
 
     const step = sol.find(s => s.id === pieceId);
@@ -809,6 +832,21 @@
     sizeToBoard(target);
     place(target, step.r, step.c);
     select(null);
+  }
+
+  // Pressing a hint button again takes that piece back off the board.
+  function hintToggle(pieceId){
+    const p = pieces[pieceId];
+    if(!p || p.locked) return;
+    if(p.placed){ toTray(p); select(null); }
+    else { hintPlace(pieceId); }
+    syncHintBtns();
+  }
+  function syncHintBtns(){
+    if(!hint1Btn || !pieces[HINT1_ID]) return;
+    maybeClearHintSolution();
+    hint1Btn.classList.toggle('on', pieces[HINT1_ID].placed);
+    hint2Btn.classList.toggle('on', pieces[HINT2_ID].placed);
   }
 
   function solveAll(){
@@ -857,6 +895,7 @@
     stopTimer(); startTime = null;
     winEl.classList.add('hidden');
     winBlocked = false;
+    hintSolution = null;
     select(null);
     computeCells();
     newGrid();
@@ -868,8 +907,8 @@
   document.getElementById('rotateBtn').addEventListener('click', ()=>{
     if(selectedId && pieces[selectedId]) rotate(pieces[selectedId]);
   });
-  document.getElementById('hint1Btn').addEventListener('click', ()=> hintPlace('h')); // 1×4
-  document.getElementById('hint2Btn').addEventListener('click', ()=> hintPlace('g')); // 1×5
+  hint1Btn.addEventListener('click', ()=> hintToggle(HINT1_ID)); // 1×4
+  hint2Btn.addEventListener('click', ()=> hintToggle(HINT2_ID)); // 1×5
   document.getElementById('solveBtn').addEventListener('click', solveAll);
   document.getElementById('resetBtn').addEventListener('click', reset);
   document.getElementById('againBtn').addEventListener('click', reset);
