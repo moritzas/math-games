@@ -49,7 +49,12 @@ body{background:var(--paper);color:var(--ink);
 .panel{position:fixed;z-index:100;background:var(--panel);backdrop-filter:blur(8px);
   border:1px solid var(--panel-line);border-radius:10px;box-shadow:0 4px 16px rgba(30,37,54,.10)}
 #topbar{top:10px;left:10px;padding:9px 11px;display:flex;flex-direction:column;gap:7px;
-  max-width:min(440px,calc(100vw - 20px))}
+  max-width:min(440px,calc(100vw - 20px));transition:padding .14s ease}
+/* 收合標籤靠右,避開正下方置中的 ↑ 鈕 */
+#topTab{align-self:flex-end;font-size:11.5px;padding:3px 10px;color:var(--ink-soft);
+  border-radius:6px;letter-spacing:.02em}
+#topbar.collapsed{padding:5px 6px;gap:0}
+#topbar.collapsed .row{display:none}
 .row{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
 .eyebrow{font-family:"Space Grotesk",sans-serif;font-size:10px;letter-spacing:.13em;
   text-transform:uppercase;color:var(--ink-soft);font-weight:500;margin-right:2px}
@@ -90,14 +95,20 @@ button:disabled{opacity:.4;cursor:not-allowed}
 #bar{position:fixed;z-index:99;left:0;right:0;bottom:0;
   background:rgba(255,255,255,.94);backdrop-filter:blur(8px);
   border-top:1px solid var(--panel-line);
-  padding:5px 12px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;
-  font-size:12px;line-height:1.35;color:var(--ink-soft);max-height:44px;overflow:hidden}
+  padding:5px 12px calc(5px + env(safe-area-inset-bottom,0px));
+  display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+  font-size:12px;line-height:1.4;color:var(--ink-soft)}
 #stats{display:flex;gap:12px;flex:0 0 auto;font-family:"Space Grotesk",sans-serif;align-items:baseline}
 #stats i{font-style:normal;color:var(--ink-soft)}
 #stats b{font-size:15px;color:var(--ink)}
 #stats b.ok{color:var(--enc-line)}
 #stats b.no{color:var(--warn)}
-#hint{flex:1 1 200px;min-width:0}
+#hint{flex:1 1 190px;min-width:0}
+@media (max-width:600px){
+  #bar{font-size:11.5px;gap:9px}
+  #stats{gap:9px}
+  #stats b{font-size:14px}
+}
 
 #toast{position:fixed;left:50%;bottom:calc(var(--barh) + 46px);transform:translateX(-50%) translateY(12px);
   z-index:200;background:var(--ink);color:#fff;padding:10px 20px;border-radius:999px;
@@ -123,6 +134,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
   </div>
   <div class="row" id="optRow"></div>
   <div class="row" id="optRow2"></div>
+  <button id="topTab" title="收合／展開選單">收起 ▲</button>
 </div>
 
 <button class="nav" id="navU" title="往上看">↑</button>
@@ -632,6 +644,14 @@ function countTag(len,target){
   s.style.color = len===target?'#2e8a6e' : len>target?'#c0483c' : '#3b7ea1';
   return s;
 }
+const MODE_NAME={rect:'拚長方形',repl:'自我複製',fence:'圍面積',congr:'三組同形'};
+$('topTab').onclick=()=>{
+  const t=$('topbar'); t.classList.toggle('collapsed');
+  const c=t.classList.contains('collapsed');
+  /* 收起後標籤兼作狀態顯示,不必展開也知道現在在玩哪一種 */
+  $('topTab').textContent = c ? MODE_NAME[S.mode]+' ▼' : '收起 ▲';
+  requestAnimationFrame(placeNavU);
+};
 function placeNavU(){
   const t=$('topbar').getBoundingClientRect();
   const u=$('navU');
