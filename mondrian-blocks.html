@@ -164,6 +164,8 @@
   .card .swatches span{width:22px; height:22px; border:2px solid var(--ink);}
   .card p{margin:6px 0 18px; color:#5a5648; font-size:15px;}
   .card b{font-variant-numeric:tabular-nums;}
+  .card .wbtns{display:flex; gap:8px; justify-content:center; flex-wrap:wrap;}
+  .card .tapaway{margin:14px 0 0; font-size:12px; color:#8a8474;}
 
   @media (max-width:480px){
     .hud{gap:5px;} 
@@ -194,6 +196,8 @@
       <div class="stat">已放 <b id="count">0</b>/11</div>
       <div class="spacer"></div>
       <button id="rotateBtn" class="accent">旋轉 ↻</button>
+      <button id="hint1Btn">提示1</button>
+      <button id="hint2Btn">提示2</button>
       <button id="solveBtn">顯示解答</button>
       <button id="resetBtn">重來</button>
     </div>
@@ -217,7 +221,11 @@
         <span style="background:#f5f2e9"></span>
       </div>
       <p>用時 <b id="winTime">0:00</b>,64 格全部鋪滿。</p>
-      <button id="againBtn" class="accent">再玩一次</button>
+      <div class="wbtns">
+        <button id="closeWinBtn" class="accent">看盤面</button>
+        <button id="againBtn">再玩一次</button>
+      </div>
+      <p class="tapaway">點旁邊空白處也可以關閉</p>
     </div>
   </div>
 
@@ -644,10 +652,16 @@
   }
   function stopTimer(){ if(tickTimer){ clearInterval(tickTimer); tickTimer=null; } }
 
+  let winBlocked = false;   // true once the player dismisses it (or asks for the answer)
   function win(){
+    if(winBlocked) return;
     stopTimer();
     winTimeEl.textContent = startTime ? fmt(Date.now()-startTime) : '0:00';
     winEl.classList.remove('hidden');
+  }
+  function closeWin(){
+    winEl.classList.add('hidden');
+    winBlocked = true;      // let them study the finished board without it popping back up
   }
 
   /* ---------- solver ---------- */
@@ -700,7 +714,105 @@
     select(null);
   }
 
+  /* ---------- hints: drop one specific piece into a correct spot ---------- */
+  // Generic backtracking fill of `occ` (truthy = blocked) using the given piece ids.
+  function solveFrom(occ, availIds){
+    const g = occ.map(row => row.slice());
+    const rem = availIds.map(id => {
+      const d = DEFS.find(x => x.id === id);
+      return {id, w:d.w, h:d.h};
+    });
+    const used = new Array(rem.length).fill(false);
+    const out = [];
+    function firstEmpty(){
+      for(let r=0;r<N;r++) for(let c=0;c<N;c++) if(!g[r][c]) return [r,c];
+      return null;
+    }
+    function bt(){
+      const fe = firstEmpty();
+      if(!fe) return true;
+      const [r,c] = fe;
+      for(let i=0;i<rem.length;i++){
+        if(used[i]) continue;
+        const pc = rem[i];
+        const orients = pc.w === pc.h ? [[pc.w,pc.h]] : [[pc.w,pc.h],[pc.h,pc.w]];
+        for(let o=0;o<orients.length;o++){
+          const [w,h] = orients[o];
+          if(r+h>N || c+w>N) continue;
+          let ok = true;
+          for(let rr=r; rr<r+h && ok; rr++) for(let cc=c; cc<c+w; cc++) if(g[rr][cc]){ ok=false; break; }
+          if(!ok) continue;
+          for(let rr=r; rr<r+h; rr++) for(let cc=c; cc<c+w; cc++) g[rr][cc]=1;
+          used[i]=true; out.push({id:pc.id, r, c, rot:o});
+          if(bt()) return true;
+          out.pop(); used[i]=false;
+          for(let rr=r; rr<r+h; rr++) for(let cc=c; cc<c+w; cc++) g[rr][cc]=0;
+        }
+      }
+      return false;
+    }
+    return bt() ? out : null;
+  }
+
+  function occFrom(keepIds){
+    const occ = [];
+    for(let r=0;r<N;r++) occ.push(new Array(N).fill(0));
+    keepIds.forEach(id => {
+      const p = pieces[id];
+      if(!p || !p.placed) return;
+      const [cols, rows] = dims(p);
+      for(let rr=p.r; rr<p.r+rows; rr++)
+        for(let cc=p.c; cc<p.c+cols; cc++) occ[rr][cc] = 1;
+    });
+    return occ;
+  }
+
+  function hintPlace(pieceId){
+    const target = pieces[pieceId];
+    if(!target || target.locked) return;
+
+    // First try a solution that keeps what the player has already laid down;
+    // if their board can't be finished, fall back to one that only respects the fixed black pieces.
+    const keepA  = DEFS.filter(d => pieces[d.id].placed && d.id !== pieceId).map(d => d.id);
+    const availA = DEFS.filter(d => keepA.indexOf(d.id) === -1).map(d => d.id);
+    let sol = solveFrom(occFrom(keepA), availA);
+    if(!sol){
+      const lockedIds = DEFS.filter(d => pieces[d.id].locked).map(d => d.id);
+      const availB    = DEFS.filter(d => !pieces[d.id].locked).map(d => d.id);
+      sol = solveFrom(occFrom(lockedIds), availB);
+    }
+    if(!sol){ flashMessage('這一關算不出解,請按「重來」。'); return; }
+
+    const step = sol.find(s => s.id === pieceId);
+    if(!step) return;
+
+    // Lift the target, then clear anything movable sitting on its spot.
+    if(target.placed) toTray(target);
+    target.rot = step.rot;
+    const [cols, rows] = dims(target);
+    const clash = new Set();
+    for(let rr=step.r; rr<step.r+rows; rr++)
+      for(let cc=step.c; cc<step.c+cols; cc++){
+        const id = grid[rr][cc];
+        if(id) clash.add(id);
+      }
+    let blocked = false;
+    clash.forEach(id => {
+      const q = pieces[id];
+      if(!q) return;
+      if(q.locked){ blocked = true; return; }
+      if(q.placed) toTray(q);
+    });
+    if(blocked){ flashMessage('提示位置和固定方塊衝突,請按「重來」。'); return; }
+
+    ensureTimer();
+    sizeToBoard(target);
+    place(target, step.r, step.c);
+    select(null);
+  }
+
   function solveAll(){
+    winBlocked = true;      // showing the answer shouldn't cover the board with a popup
     // Lift every movable piece (locked given pieces stay), then lay down a full solution.
     DEFS.forEach(d => {
       const p = pieces[d.id];
@@ -744,6 +856,7 @@
     drag = null; ghost.style.display = 'none';
     stopTimer(); startTime = null;
     winEl.classList.add('hidden');
+    winBlocked = false;
     select(null);
     computeCells();
     newGrid();
@@ -755,11 +868,16 @@
   document.getElementById('rotateBtn').addEventListener('click', ()=>{
     if(selectedId && pieces[selectedId]) rotate(pieces[selectedId]);
   });
+  document.getElementById('hint1Btn').addEventListener('click', ()=> hintPlace('h')); // 1×4
+  document.getElementById('hint2Btn').addEventListener('click', ()=> hintPlace('g')); // 1×5
   document.getElementById('solveBtn').addEventListener('click', solveAll);
   document.getElementById('resetBtn').addEventListener('click', reset);
   document.getElementById('againBtn').addEventListener('click', reset);
+  document.getElementById('closeWinBtn').addEventListener('click', closeWin);
+  winEl.addEventListener('click', (e)=>{ if(e.target === winEl) closeWin(); });
 
   window.addEventListener('keydown', (e)=>{
+    if(e.key === 'Escape' && !winEl.classList.contains('hidden')){ closeWin(); return; }
     if(e.key === 'r' || e.key === 'R'){
       if(drag){ rotate(drag.piece); }
       else if(selectedId && pieces[selectedId]){ rotate(pieces[selectedId]); }
