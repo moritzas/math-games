@@ -272,6 +272,7 @@ function occupiedMap(ex){const m=new Map();
   S.pieces.forEach((p,i)=>{if(i!==ex)cellsOf(p).forEach(([r,c])=>m.set(r+','+c,i))});return m}
 
 function render(){
+  document.documentElement.style.setProperty('--cell',S.cell+'px');
   gridEl.style.backgroundPosition=`${-S.offX}px ${-S.offY}px`;
   world.innerHTML=''; const cs=S.cell, f=document.createDocumentFragment();
   const box=(cls,r,c)=>{const d=document.createElement('div');d.className=cls;
@@ -398,19 +399,27 @@ function startPinch(){
 }
 
 world.addEventListener('pointerdown',e=>{
+  /* isPrimary 代表這是新手勢的第一根手指 → 之前殘留的指標一律作廢,
+     即使某次 pointerup 真的漏掉了,下一次觸控也一定救得回來 */
+  if(e.isPrimary){pts.clear();pinch=null;panning=null;
+    if(drag){drag.el.classList.remove('dragging');drag=null}
+    world.classList.remove('panning')}
   pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(pts.size===2){startPinch();return}
   if(pts.size>2)return;
   const el=e.target.closest('.piece');
   if(!el){panning={x:e.clientX,y:e.clientY,ox:S.offX,oy:S.offY,moved:false};
-    world.setPointerCapture(e.pointerId); world.classList.add('panning'); return}
+    world.classList.add('panning'); return}
   const i=+el.dataset.i, p=S.pieces[i];
   const wasSel=(S.selected===i);
   S.selected=i; drag={i,el,sx:e.clientX,sy:e.clientY,or:p.r,oc:p.c,moved:false,wasSel};
-  el.classList.add('dragging','selected'); el.setPointerCapture(e.pointerId);
+  el.classList.add('dragging','selected');
   world.appendChild(el);
 });
-world.addEventListener('pointermove',e=>{
+/* 移動與放開都掛在 window：手指若在浮動面板上放開,world 收不到事件,
+   pts 會留下幽靈指標,之後永遠被當成兩指 → 只能縮放、拉不動片 */
+window.addEventListener('pointermove',e=>{
+  if(!pts.has(e.pointerId)&&!drag&&!panning&&!pinch)return;
   if(pts.has(e.pointerId))pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(pinch&&pts.size>=2){
     const m=twoFinger(); if(!m.d)return;
@@ -428,7 +437,16 @@ world.addEventListener('pointermove',e=>{
   if(!drag.moved&&Math.hypot(dx,dy)>5)drag.moved=true;
   if(drag.moved){drag.el.style.left=(X(drag.oc)+dx)+'px';drag.el.style.top=(Y(drag.or)+dy)+'px'}
 });
-['pointerup','pointercancel'].forEach(ev=>world.addEventListener(ev,end));
+['pointerup','pointercancel'].forEach(ev=>window.addEventListener(ev,end));
+/* 切到別的分頁、來電等等會讓事件整串消失,回來時直接把手勢狀態清乾淨 */
+addEventListener('blur',resetGesture);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)resetGesture()});
+function resetGesture(){
+  pts.clear(); pinch=null; panning=null;
+  world.classList.remove('panning');
+  if(drag){const p=S.pieces[drag.i]; p.r=drag.or; p.c=drag.oc; drag=null}
+  render();
+}
 function end(e){
   if(e&&e.pointerId!==undefined)pts.delete(e.pointerId);
   if(pinch){if(pts.size<2)pinch=null; return}      // 手指放開前不做任何放置判定
