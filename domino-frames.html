@@ -32,6 +32,9 @@ button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
 button:disabled{opacity:.35;cursor:not-allowed}
 .pill{padding:4px 9px;font-size:12.5px}
 .num{font-family:"Space Grotesk",sans-serif;font-weight:700;width:29px;padding:5px 0;text-align:center}
+.num.dead{position:relative;color:#a9a49a;background:#efece5}
+.num.dead::after{content:"";position:absolute;left:5px;right:5px;top:50%;
+  border-top:1.5px solid #b8b2a6;transform:rotate(-22deg)}
 #qIn{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:14px;width:54px;
   text-align:center;padding:5px 4px;border:1px solid var(--line);border-radius:7px;background:#fff}
 #info{max-width:1180px;margin:9px auto 0;padding:0 16px;font-size:12.5px;color:var(--ink-soft)}
@@ -39,8 +42,9 @@ button:disabled{opacity:.35;cursor:not-allowed}
 #info .good{color:var(--ok)}
 
 /* ---------- 盤面 ---------- */
-#board{max-width:1180px;margin:14px auto 0;padding:0 16px;
-  display:flex;flex-wrap:wrap;gap:26px;align-items:flex-start}
+#board{max-width:1180px;margin:14px auto 0;padding:0 16px}
+#board.multi{display:flex;flex-wrap:wrap;gap:26px;align-items:flex-start}
+.scrollx{overflow-x:auto;overflow-y:hidden;padding-bottom:8px;max-width:100%}
 .chain{display:grid;position:relative}
 .fbg{border:1.5px dashed var(--line);border-radius:9px;margin:2px;pointer-events:none}
 .fbg.done{border-style:solid;border-color:var(--ok);background:var(--ok-bg)}
@@ -50,6 +54,7 @@ button:disabled{opacity:.35;cursor:not-allowed}
 .hole .n{grid-area:1/2/2/3} .hole .w{grid-area:2/1/3/2}
 .hole .e{grid-area:2/3/3/4} .hole .s{grid-area:3/2/4/3}
 .hole b{grid-area:2/2/3/3;font-size:calc(var(--cs)*.26);color:#b7b3a6}
+.hole b.goal{color:var(--lock);font-size:calc(var(--cs)*.30)}
 .hole .hit{color:var(--ok)} .hole .miss{color:var(--warn)}
 .slot{border:1.5px dashed var(--line);border-radius:6px;margin:1.5px;background:rgba(255,255,255,.45)}
 .slot.over{border-color:var(--ink);border-style:solid;background:#fff}
@@ -71,9 +76,6 @@ button:disabled{opacity:.35;cursor:not-allowed}
 .dom.lock .half span.on{background:var(--lock)}
 .dom.drag{position:fixed;z-index:999;pointer-events:none;opacity:.9;
   box-shadow:0 10px 22px rgba(30,37,54,.3);cursor:grabbing}
-.flip{position:absolute;right:0;top:0;width:15px;height:15px;border-radius:0 4px 0 5px;
-  background:rgba(30,37,54,.7);color:#fff;font-size:9px;line-height:15px;text-align:center;
-  cursor:pointer;z-index:2}
 
 /* ---------- 牌庫 ---------- */
 #trayWrap{max-width:1180px;margin:20px auto 0;padding:14px 16px 0;border-top:1px solid var(--line)}
@@ -93,8 +95,10 @@ button:disabled{opacity:.35;cursor:not-allowed}
   <h1 id="title">骨牌方框</h1>
   <div class="controls" id="modeRow">
     <span class="eyebrow">玩法</span>
-    <button class="pill" data-m="1">等和方框</button>
-    <button class="pill" data-m="2">步步升</button>
+    <button class="pill" data-m="eq">等和方框</button>
+    <button class="pill" data-m="bank">爬樓梯(題目)</button>
+    <button class="pill" data-m="free">爬樓梯(自由)</button>
+    <button class="pill" data-m="stair">步步升</button>
   </div>
   <div class="controls" id="ctl"></div>
 </header>
@@ -102,7 +106,8 @@ button:disabled{opacity:.35;cursor:not-allowed}
 <div id="board"></div>
 
 <div id="trayWrap">
-  <span class="eyebrow">牌庫（雙六 28 張）</span><span style="font-size:11.5px;color:var(--ink-soft);margin-left:8px">拖曳放牌;也可以點一張再點空格</span>
+  <span class="eyebrow">牌庫（雙六 28 張）</span>
+  <span style="font-size:11.5px;color:var(--ink-soft);margin-left:8px">拖曳放牌,或點一張再點空格；放好的牌點一下翻面、拖走收回</span>
   <div id="tray"></div>
 </div>
 <div id="toast"></div>
@@ -110,84 +115,113 @@ button:disabled{opacity:.35;cursor:not-allowed}
 <script>
 const BANK={"1":"6|8|A2:26,B0:41,B2:04,C0:33","2":"6|8|A2:31,B2:42,C0:06,C2:12,D0:52","3":"6|9|A0:41,B0:40,B2:43,C2:42","4":"6|9|A2:42,A3:26,B0:21,C0:06,C2:22","5":"6|10|A4:33,B0:05,B2:13,C0:25","6":"6|10|B0:61,B2:05,B5:60,C0:33,C3:23","7":"6|10|A0:26,A2:42,B0:22","8":"6|10|A1:50,A5:35,B1:51,B3:25,C0:55","9":"6|8|A2:22,B2:40,B5:11,D0:44","10":"6|10|A2:53,B2:26,B4:34,C0:54,D0:61","11":"6|10|A0:52,A3:33,B3:46,C0:55","12":"6|0|A4:13,A5:06,B4:6.,D0:63","13":"6|0|A0:15,A3:12,C0:60","14":"6|0|A0:33,A2:3.,A4:3.,A5:1.,B0:3.,B1:1.,C0:1.,C3:1.","15":"6|9|A0:50,A2:63,A5:33,B5:31","16":"6|8|A2:35,A3:60,A4:12,B2:02,C0:11","17":"6|8|A0:02,A1:23,A2:40,A3:11,B0:60","18":"6|8|A0:3.,A1:34,A5:23,B0:50","19":"6|8|A0:40,A3:12,B0:41,B5:11","20":"6|9|A0:05,A2:52,A4:16,B4:26","21":"6|10|A0:60,A3:53,B1:34,C1:33","22":"6|9|A0:03,A1:04,A4:21,B3:25","23":"6|10|A0:42,A2:52,B2:32","24":"6|9|A0:23,A2:33,B2:34,D0:6.","25":"6|8|A3:15,A5:21,B2:16,C0:14,C2:11","26":"6|0|A0:23,A3:22,C2:52,C3:20,C5:12","27":"6|8|A0:12,B0:53,B2:52,B5:11","28":"6|9|A2:41,A5:51,B2:45,C3:22,D0:43","29":"6|0|A0:61,A3:26,B5:64,C0:06","30":"6|9|B0:15,B2:05,B5:12,C0:03","31":"6|0|A2:50,A5:40,B2:5.,D0:34","32":"6|10|A1:64,A3:22,B0:31","33":"5|6|A1:05,A3:24,B0:60","34":"5|6|A0:12,B0:33","35":"5|6|A0:22,B1:04,C1:32","36":"5|0|A0:33,A3:03,B3:3.,C1:20","37":"5|7|A0:34,A3:04,B0:01,B4:14","38":"5|0|A0:23,A3:25,B0:2.,B4:02,C2:22","39":"5|7|A1:16,A4:13,B0:60,B2:34,C0:11","40":"5|7|A1:61,B0:10,B2:14,C4:21,D0:11","41":"5|7|A2:22,A3:04,C0:06,C2:20,D0:21","42":"5|8|A0:04,A1:26,B0:42,B4:44,C4:20","43":"5|8|A2:31,A4:25,B0:20,B1:05,C3:22,D0:12","44":"5|8|A0:32,B0:30,B3:22,C2:02","45":"5|8|A3:33,B0:11,B1:03,B3:24,D0:22","46":"5|8|A1:62,B0:20,B2:21,B4:24,C4:22","47":"5|9|A0:24,A2:44,C2:32,D0:43","48":"5|9|A2:32,B0:35,B1:42,B3:36,C4:30","49":"5|9|A0:13,A4:33,B1:03,C1:36,C3:23","50":"5|9|B0:21,B1:05,B2:23,C3:33,D0:31","51":"5|9|B2:13,C0:06,C4:61,D0:03","52":"5|10|A3:25,B1:06,C0:24,C2:22,C4:04,D0:14","53":"5|10|B2:26,B4:43,C3:04,D0:52","54":"5|10|A1:64,A3:42,B0:22,B3:44,D0:04","55":"5|10|A0:13,B2:16,B4:33,D0:36","56":"5|10|A0:25,A2:53,A3:40,B0:31","57":"5|11|A0:34,A2:63,A3:44,B3:33","58":"5|0|A0:50,A1:55,A2:54,A3:35,C0:25","59":"5|11|A1:43,B0:52,C3:33,C4:44,D0:55","60":"5|11|A4:44,B1:15,C0:54,C1:55,C4:33","61":"5|12|A3:42,B0:06,C1:33","62":"5|12|A0:25,A4:65,B3:24,D0:55","63":"5|0|A0:44,A1:66,B4:55,C3:33","64":"5|12|A0:43,B1:16,B3:33,C0:35,C4:36","65":"4|6|A0:60,A1:50,B2:04,C3:20","66":"4|6|A1:42,B2:33,C1:31,C3:30,D0:32","67":"4|6|C0:14,C1:51,C2:01,D0:11","68":"4|6|A0:03,A3:00,B1:15,B2:24","69":"4|0|A0:23,A2:21,C1:42,C2:20","70":"4|6|A2:12,B0:20,B1:05,D0:31","71":"4|7|A0:32,B3:13,C1:43,C3:33","72":"4|7|A0:61,A1:52,B1:05,B3:24","73":"4|7|A1:25,A3:12,B0:50,C3:30,D0:15","74":"4|7|A3:11,B0:30,B2:33,D0:21","75":"4|7|A1:40,B2:61,C1:50,C3:15,D0:32","76":"4|0|A0:31,A2:12,B3:11,C0:14,C2:01","77":"4|8|A1:03,A3:23,B3:35,D0:13","78":"4|8|A3:33,B0:02,B1:04,B2:05,D0:32","79":"4|8|A1:26,B3:16,C2:23,C3:31,D0:15","80":"4|8|A0:13,A3:15,B2:16,C0:14,C2:11","81":"4|8|A1:60,A3:33,B3:22,D0:51","82":"4|0|A1:02,A2:22,C1:12,C3:33,D0:05","83":"4|8|A0:61,A2:33,B2:25,B3:23,C0:06","84":"4|8|A2:33,B0:11,B2:23,B3:04,D0:21"};
 
-/* 風車框：3×3 去中心，四張骨牌鋪滿 8 格
+/* 風車框：3×3 去中心,四張骨牌鋪滿 8 格
      A 橫(0,0)(0,1)  B 直(0,2)(1,2)  C 橫(2,1)(2,2)  D 直(1,0)(2,0)
    每一邊 = 一張完整骨牌 + 隔壁骨牌的一個半邊：
      上 = A + B[0]   右 = B + C[1]   下 = C + D[1]   左 = D + A[0]
-   步步升：第 k+1 框的 D 就是第 k 框的 B（整張共用），框心往右上各挪一步 */
+   爬樓梯：第 k+1 框的 D 就是第 k 框的 B(整張共用),往右上各挪一步
+     n 框需 3n+1 張 → 9 框剛好用完 28 張,可惜等和與遞增都無解 */
 const PIPS={0:[],1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
 const DOMS=[]; for(let a=0;a<7;a++)for(let b=a;b<7;b++)DOMS.push([a,b]);
 const IDX={}; DOMS.forEach((d,i)=>IDX[d[0]+'-'+d[1]]=i);
 const tileOf=(x,y)=>IDX[Math.min(x,y)+'-'+Math.max(x,y)];
+/* 以下三張表都是程式窮舉算出來的 */
 const MAXF={2:1,3:1,4:2,5:3,6:4,7:4,8:5,9:5,10:5,11:4,12:4,13:3,14:2,15:1,16:1};
+const EQ_OK={2:[4,5,6,7,8,9,10,11,12,13,14],3:[5,6,7,8,9,10,11,12,13],
+             4:[6,7,8,9,10,11,12],5:[6,7,8,9,10,11,12],6:[8,9,10],7:[],8:[],9:[]};
+const STAIR_OK={2:[3,4,5,6,7,8,9,10,11,12,13,14],3:[3,4,5,6,7,8,9,10,11,12,13],
+                4:[4,5,6,7,8,9,10,11],5:[4,5,6,7,8,9,10],6:[4,5,6,7,8,9],
+                7:[5,6,7],8:[5,6],9:[]};
+const TITLES={eq:'等和方框：四張圍一框,四邊點數和相等',
+              bank:'爬樓梯：框框相連、共用一張,全部邊和相等',
+              free:'爬樓梯自由版：自選層數,所有邊和相等',
+              stair:'步步升：由左到右,每一層的邊和比前一層多 1'};
 
-const S={mode:1, target:9, q:1, showS:false, placed:{}, given:{}, drag:null, sel:null};
+const S={mode:'eq', target:9, q:1, n:4, showS:false,
+         placed:{}, given:{}, sel:null, drag:null};
 const $=id=>document.getElementById(id);
 const psum=d=>d[0]+d[1];
-const usableFor=(d,t)=>psum(d)>=t-6&&psum(d)<=t;
-const nFrames=()=>S.mode===1?(MAXF[S.target]||0):cur().n;
+const isChain=()=>S.mode!=='eq';
 function cur(){const [n,s,g]=BANK[S.q].split('|');
   const given={}; if(g) g.split(',').forEach(p=>{const[k,v]=p.split(':');
     given[k]=[v[0]==='.'?null:+v[0], v[1]==='.'?null:+v[1]]});
   return {n:+n, S:+s||null, given};}
+function nFrames(){
+  if(S.mode==='eq') return MAXF[S.target]||0;
+  if(S.mode==='bank') return cur().n;
+  return S.n;
+}
+const okList=()=> S.mode==='stair'?STAIR_OK:EQ_OK;
 
 /* ---------- 狀態 ---------- */
 function load(){
   S.placed={}; S.given={}; S.sel=null;
-  if(S.mode===2){
+  if(S.mode==='bank'){
     const c=cur();
     for(const k in c.given){
       const v=c.given[k];
       if(v[0]!==null&&v[1]!==null) S.given[k]={di:tileOf(v[0],v[1]), flip:v[0]>v[1]};
-      else S.given[k]={half:v};              // 只給半邊：當提示，不佔牌
+      else S.given[k]={half:v};
     }
   }
   render();
 }
 const rec=k=>S.placed[k]||(S.given[k]&&S.given[k].di!==undefined?S.given[k]:null);
 const vals=r=>{const d=DOMS[r.di];return r.flip?[d[1],d[0]]:[d[0],d[1]]};
+const isGiven=k=>!!(S.given[k]&&S.given[k].di!==undefined);
 function usedTiles(){const s=new Set();
   for(const k in S.given) if(S.given[k].di!==undefined) s.add(S.given[k].di);
   for(const k in S.placed) s.add(S.placed[k].di); return s;}
 
-/* 第 k 框四個位置的鍵名（步步升的 D 就是上一框的 B） */
 function quadKeys(f){
-  if(S.mode===1) return {A:f+'A',B:f+'B',C:f+'C',D:f+'D'};
+  if(S.mode==='eq') return {A:f+'A',B:f+'B',C:f+'C',D:f+'D'};
   return {A:'A'+f, B:'B'+f, C:'C'+f, D: f===0?'D0':'B'+(f-1)};
 }
 function quad(f){const K=quadKeys(f);
   return {A:rec(K.A),B:rec(K.B),C:rec(K.C),D:rec(K.D)};}
-const isGiven=k=>!!(S.given[k]&&S.given[k].di!==undefined);
-/* 只用玩家看得到的資訊推邊和：優先用「兩張都是題目給的」那一邊，
-   推不出來才退而用盤面上任一條已成立的邊。不偷看答案，就不會洩題。 */
-function derivedTarget(onlyGiven){
-  for(let f=0;f<nFrames();f++){
-    const K=quadKeys(f), s=sides(f);
-    for(const [side,x,y] of [['n','A','B'],['e','B','C'],['s','C','D'],['w','D','A']]){
-      if(s[side]===null) continue;
-      if(onlyGiven && !(isGiven(K[x])&&isGiven(K[y]))) continue;
-      return s[side];
-    }
-  }
-  return null;
-}
 function sides(f){
   const {A,B,C,D}=quad(f); const V=r=>r?vals(r):null;
   const a=V(A),b=V(B),c=V(C),d=V(D);
   return {n: a&&b?a[0]+a[1]+b[0]:null, e: b&&c?b[0]+b[1]+c[1]:null,
           s: c&&d?c[0]+c[1]+d[1]:null, w: d&&a?d[0]+d[1]+a[0]:null};
 }
-function targetNow(){
-  if(S.mode===1) return S.target;
-  if(S.showS) return cur().S ?? derivedTarget(false);
-  return derivedTarget(true) ?? derivedTarget(false);
+/* 只用玩家看得到的資訊推基準邊和：優先用「兩張都是題目給的」那一邊,
+   推不出來才退而用盤面上任一條已成立的邊。步步升要再扣掉層數差。 */
+function refBase(onlyGiven){
+  for(let f=0;f<nFrames();f++){
+    const K=quadKeys(f), s=sides(f);
+    for(const [side,x,y] of [['n','A','B'],['e','B','C'],['s','C','D'],['w','D','A']]){
+      if(s[side]===null) continue;
+      if(onlyGiven && !(isGiven(K[x])&&isGiven(K[y]))) continue;
+      return S.mode==='stair' ? s[side]-f : s[side];
+    }
+  }
+  return null;
 }
-const frameDone=f=>{const t=targetNow(),s=sides(f);
+function baseNow(){
+  if(S.mode==='eq') return S.target;
+  if(S.mode==='bank'&&S.showS){const c=cur(); if(c.S) return c.S}
+  return refBase(true) ?? refBase(false);
+}
+function targetOf(f){
+  const b=baseNow(); if(b===null) return null;
+  return S.mode==='stair' ? b+f : b;
+}
+const frameDone=f=>{const t=targetOf(f),s=sides(f);
   return t!==null&&['n','e','s','w'].every(k=>s[k]===t)};
 function allDone(){
-  if(!nFrames())return false;
-  for(let f=0;f<nFrames();f++) if(!frameDone(f)) return false;
+  const n=nFrames(); if(!n)return false;
+  for(let f=0;f<n;f++) if(!frameDone(f)) return false;
   return true;
+}
+/* 某張牌只要能塞進任何一層的可用範圍就不反白（步步升各層目標不同） */
+function usableAnywhere(d){
+  const n=nFrames(); let any=false;
+  for(let f=0;f<n;f++){
+    const t=targetOf(f); if(t===null) return true;
+    any=true; if(psum(d)>=t-6&&psum(d)<=t) return true;
+  }
+  return !any;
 }
 
 /* ---------- 骨牌 DOM ---------- */
@@ -200,19 +234,11 @@ function domEl(d,orient,o={}){
       if(PIPS[v].includes(i)) s.className='on'; h.appendChild(s)}
     e.appendChild(h);
   });
-  if(o.flipBtn){const b=document.createElement('div');b.className='flip';b.textContent='⇄';
-    b.title='翻轉半邊';
-    b.onpointerdown=ev=>{ev.stopPropagation();ev.preventDefault();o.flipBtn()};
-    e.appendChild(b)}
   return e;
 }
 
 /* ---------- 拖曳 ---------- */
-/* 手機關鍵：光靠 touch-action:none 在部分 Android Chrome 擋不住捲動,
-   瀏覽器會搶走手勢並丟出 pointercancel。所以拖曳期間再用非被動的
-   touchmove + preventDefault 硬擋一次。 */
 document.addEventListener('touchmove',e=>{if(S.drag)e.preventDefault()},{passive:false});
-
 function beginDrag(ev, payload, orient){
   if(ev.button!==undefined && ev.button>0) return;
   ev.preventDefault();
@@ -224,9 +250,7 @@ function beginDrag(ev, payload, orient){
   document.addEventListener('pointerup',endDrag,{once:true});
   document.addEventListener('pointercancel',endDrag,{once:true});
 }
-function clearGhosts(){
-  document.querySelectorAll('.dom.drag').forEach(g=>g.remove());
-}
+const clearGhosts=()=>document.querySelectorAll('.dom.drag').forEach(g=>g.remove());
 function makeGhost(){
   clearGhosts();
   const {payload,orient}=S.drag;
@@ -241,7 +265,7 @@ function moveGhost(ev){
   if(!S.drag||ev.pointerId!==S.drag.id)return;
   const d=S.drag;
   if(!d.moved){
-    if(Math.hypot(ev.clientX-d.x0,ev.clientY-d.y0)<4) return;   // 還算輕點
+    if(Math.hypot(ev.clientX-d.x0,ev.clientY-d.y0)<4) return;
     d.moved=true; makeGhost();
   }
   if(ev.cancelable) ev.preventDefault();
@@ -272,10 +296,11 @@ function endDrag(ev){
   S.drag=null;
   document.querySelectorAll('.slot.over').forEach(s=>s.classList.remove('over'));
   $('tray').classList.remove('over');
-
   if(cancelled) return render();
-  if(!moved){                       /* 輕點：選取／收回,拖不動時的備援 */
-    if(from){ delete S.placed[from]; S.sel=null; }
+  if(!moved){
+    /* 放好的牌輕點 = 翻面。比「收回牌庫」安全：誤觸再點一次就翻回來,
+       不會像收回那樣直接掉了一格。要收回改成把牌拖離作答區。 */
+    if(from){ const r=S.placed[from]; if(r) r.flip=!r.flip; S.sel=null; }
     else S.sel = (S.sel&&S.sel.di===payload.di) ? null : {di:payload.di,flip:false};
     return render();
   }
@@ -288,7 +313,7 @@ function drop(key,payload,from){
   const occupant=S.placed[key];
   if(from) delete S.placed[from];
   if(occupant){
-    if(from) S.placed[from]={di:occupant.di,flip:occupant.flip};   // 兩張互換
+    if(from) S.placed[from]={di:occupant.di,flip:occupant.flip};
     else {toast('那一格已經有牌了');return}
   }
   S.placed[key]={di:payload.di, flip:payload.flip||false};
@@ -306,39 +331,46 @@ function slotEl(key,orient,lock){
   if(r&&r.di!==undefined){
     cell.classList.add('filled');
     const locked=lock&&S.placed[key]===undefined;
-    const e=domEl(DOMS[r.di],orient,{flip:r.flip,lock:locked,
-      flipBtn: locked?null:()=>{r.flip=!r.flip;render()}});
-    if(!locked) e.onpointerdown=ev=>beginDrag(ev,{di:r.di,flip:r.flip,from:key},orient);
+    const e=domEl(DOMS[r.di],orient,{flip:r.flip,lock:locked});
+    if(!locked){
+      e.onpointerdown=ev=>beginDrag(ev,{di:r.di,flip:r.flip,from:key},orient);
+      e.title='點一下翻面,拖走可收回';
+    }
     cell.appendChild(e);
   }else{
     cell.onclick=()=>tapSlot(key);
-  }
-  if(!rec(key)&&S.given[key]&&S.given[key].half){
-    const h=S.given[key].half;
-    cell.style.cssText+='display:flex;align-items:center;justify-content:center;'
-      +'font-family:Space Grotesk;font-size:11px;color:var(--lock);font-weight:700';
-    cell.textContent=h.map(x=>x===null?'?':x).join(orient==='h'?' ':'／');
-    cell.title='題目只給了半邊提示';
+    if(S.given[key]&&S.given[key].half){
+      const h=S.given[key].half;
+      cell.style.cssText+='display:flex;align-items:center;justify-content:center;'
+        +'font-family:Space Grotesk;font-size:11px;color:var(--lock);font-weight:700';
+      cell.textContent=h.map(x=>x===null?'?':x).join(orient==='h'?' ':'／');
+      cell.title='題目只給了半邊提示';
+    }
   }
   return cell;
 }
 function holeEl(f){
   const h=document.createElement('div'); h.className='hole';
-  const s=sides(f), t=targetNow();
-  [['n','n'],['e','e'],['s','s'],['w','w']].forEach(([k,cls])=>{
+  const s=sides(f), t=targetOf(f);
+  ['n','e','s','w'].forEach(k=>{
     const x=document.createElement('span');
-    x.className=cls+(s[k]===null?'':s[k]===t?' hit':' miss');
+    x.className=k+(s[k]===null?'':s[k]===t?' hit':' miss');
     x.textContent=s[k]===null?'·':s[k]; h.appendChild(x);
   });
-  const b=document.createElement('b'); b.textContent=f+1; h.appendChild(b);
+  const b=document.createElement('b');
+  /* 步步升每層目標不同,中心直接標出這一層要湊的數 */
+  if(S.mode==='stair'&&t!==null){ b.className='goal'; b.textContent=t; }
+  else b.textContent=f+1;
+  h.appendChild(b);
   return h;
 }
 function render(){
   if(!S.drag) clearGhosts();
   buildControls();
-  const B=$('board'); B.innerHTML='';
+  const B=$('board'); B.innerHTML=''; B.className=S.mode==='eq'?'multi':'';
   const n=nFrames();
-  if(S.mode===1){
+
+  if(S.mode==='eq'){
     document.documentElement.style.setProperty('--cs','34px');
     for(let f=0;f<n;f++){
       const g=document.createElement('div'); g.className='chain';
@@ -356,8 +388,11 @@ function render(){
   }else{
     const cols=2*n+1, rows=n+2;
     const avail=Math.min(innerWidth,1180)-52;
-    document.documentElement.style.setProperty('--cs',
-      Math.max(19,Math.min(40,Math.floor(avail/cols)))+'px');
+    /* 6 層以內縮到塞得下;7 層以上維持大小,改成左右拖曳 */
+    const cs = n<=6 ? Math.max(19,Math.min(40,Math.floor(avail/cols)))
+                    : Math.max(26,Math.min(40,Math.floor(avail/13)));
+    document.documentElement.style.setProperty('--cs',cs+'px');
+    const wrap=document.createElement('div'); wrap.className='scrollx';
     const g=document.createElement('div'); g.className='chain';
     g.style.gridTemplateColumns=`repeat(${cols},var(--cs))`;
     g.style.gridTemplateRows=`repeat(${rows},var(--cs))`;
@@ -376,69 +411,80 @@ function render(){
       if(f===0) put(slotEl('D0','v',true),`${r0+2}/${c0+1}/${r0+4}/${c0+2}`);
       put(holeEl(f),`${r0+2}/${c0+2}/${r0+3}/${c0+3}`);
     }
-    B.appendChild(g);
+    wrap.appendChild(g); B.appendChild(wrap);
   }
+
   /* 牌庫 */
-  const T=$('tray'); T.innerHTML=''; const used=usedTiles(), t=targetNow();
+  const T=$('tray'); T.innerHTML=''; const used=usedTiles();
   DOMS.forEach((d,i)=>{
     if(used.has(i))return;
-    const dead = t!==null && !usableFor(d,t);
+    const dead=!usableAnywhere(d);
     const cell=document.createElement('div'); cell.className='cell';
     const e=domEl(d,'h',{dead});
     if(S.sel&&S.sel.di===i) e.classList.add('sel');
-    e.title=dead?`點數和 ${psum(d)}，不在 ${t-6}～${t} 之內`
-                :`${d[0]}-${d[1]}　點數和 ${psum(d)}`;
+    e.title=dead?`點數和 ${psum(d)}，這一局用不到`:`${d[0]}-${d[1]}　點數和 ${psum(d)}`;
     if(dead) e.onpointerdown=ev=>{ev.preventDefault();
-      toast(`這張點數和 ${psum(d)}，邊和 ${t} 用不到`)};
+      toast(`這張點數和 ${psum(d)}，目前的邊和用不到`)};
     else e.onpointerdown=ev=>beginDrag(ev,{di:i,flip:false},'h');
     cell.appendChild(e); T.appendChild(cell);
   });
   drawInfo();
 }
 function drawInfo(){
-  const n=nFrames(), t=targetNow();
+  const n=nFrames(), b=baseNow();
   let done=0; for(let f=0;f<n;f++) if(frameDone(f)) done++;
-  if(S.mode===1){
-    const u=DOMS.filter(d=>usableFor(d,S.target)).length;
+  const win=allDone()?' <span class="good">🎉 通關</span>':'';
+  if(S.mode==='eq'){
+    const u=DOMS.filter(d=>psum(d)>=S.target-6&&psum(d)<=S.target).length;
     $('info').innerHTML=`邊和 <b>${S.target}</b>　可用骨牌 <b>${u}</b> 張（其餘 ${28-u} 張反白）　`+
-      `理論最多 <b>${n}</b> 框　已完成 <b>${done}</b> 框`+
-      (done===n&&n?' <span class="good">🎉 全部排出來了</span>':'');
-  }else{
-    const c=cur(), u=t!==null?DOMS.filter(d=>usableFor(d,t)).length:28;
-    $('info').innerHTML=`第 <b>${S.q}</b> 題　<b>${c.n}</b> 個框、需要 <b>${3*c.n+1}</b> 張　`+
-      (t===null ? '邊和 <b>?</b>（還推不出來，先放幾張試試）　'
-                : `邊和 <b>${t}</b>${S.showS?'':'（由盤面推得）'}　可用 <b>${u}</b> 張　`)+
-      `已完成 <b>${done}</b>/${n} 框`+
-      (allDone()?' <span class="good">🎉 通關</span>':'');
+      `理論最多 <b>${n}</b> 框　已完成 <b>${done}</b> 框`+win;
+    return;
   }
+  const need=3*n+1;
+  let head=`<b>${n}</b> 層、需要 <b>${need}</b> 張　`;
+  if(S.mode==='bank') head=`第 <b>${S.q}</b> 題　`+head;
+  let sum;
+  if(b===null) sum='邊和 <b>?</b>（還推不出來,先放幾張試試）　';
+  else if(S.mode==='stair') sum=`邊和 <b>${b}</b> → <b>${b+n-1}</b>（每層 +1）　`;
+  else sum=`邊和 <b>${b}</b>${S.mode==='bank'&&S.showS?'':'（由盤面推得）'}　`;
+  let tip='';
+  if(S.mode!=='bank'){
+    const ok=okList()[n]||[];
+    tip = ok.length ? `　<span style="color:var(--lock)">${n} 層可行的${S.mode==='stair'?'起始':''}邊和：${ok.join('、')}</span>`
+                    : `　<span style="color:var(--warn)">${n} 層無解</span>`;
+  }
+  $('info').innerHTML=head+sum+`已完成 <b>${done}</b>/${n} 層`+win+tip;
 }
 
 /* ---------- 控制列 ---------- */
 function buildControls(){
   document.querySelectorAll('#modeRow button').forEach(b=>{
-    b.classList.toggle('on',+b.dataset.m===S.mode);
-    b.onclick=()=>{S.mode=+b.dataset.m;$('ctl').dataset.built='';load()}});
-  $('title').innerHTML = S.mode===1
-    ? '骨牌方框<span>等和方框：四張圍一框，四邊點數和相等</span>'
-    : '骨牌方框<span>步步升：框框相連、共用一張，全部邊和相等</span>';
+    b.classList.toggle('on',b.dataset.m===S.mode);
+    b.onclick=()=>{S.mode=b.dataset.m;$('ctl').dataset.built='';
+      const lim=okList(); if(isChain()&&S.mode!=='bank'){
+        while(S.n>2&&!(lim[S.n]||[]).length) S.n--;
+      }
+      load()}});
+  $('title').innerHTML='骨牌方框<span>'+TITLES[S.mode]+'</span>';
   const c=$('ctl');
-  if(c.dataset.built===String(S.mode)){
+  if(c.dataset.built===S.mode){
     c.querySelectorAll('button[data-t]').forEach(b=>b.classList.toggle('on',+b.dataset.t===S.target));
+    c.querySelectorAll('button[data-n]').forEach(b=>b.classList.toggle('on',+b.dataset.n===S.n));
     const qi=$('qIn'); if(qi)qi.value=S.q;
     const sb=c.querySelector('[data-sh]'); if(sb)sb.classList.toggle('on',S.showS);
     return;
   }
-  c.dataset.built=String(S.mode); c.innerHTML='';
+  c.dataset.built=S.mode; c.innerHTML='';
   const eb=x=>{const s=document.createElement('span');s.className='eyebrow';s.textContent=x;return s};
   const btn=(x,cls,on,fn,at)=>{const b=document.createElement('button');b.className=cls;
     b.textContent=x; if(on)b.classList.add('on'); if(at)for(const k in at)b.dataset[k]=at[k];
-    b.onclick=fn; return b};
-  if(S.mode===1){
+    if(fn)b.onclick=fn; else b.disabled=true; return b};
+
+  if(S.mode==='eq'){
     c.appendChild(eb('邊和'));
     for(let t=2;t<=16;t++) c.appendChild(btn(t,'num',t===S.target,
       ()=>{S.target=t;S.placed={};render()},{t}));
-    c.appendChild(btn('清空','pill',false,()=>{S.placed={};render()}));
-  }else{
+  }else if(S.mode==='bank'){
     c.appendChild(eb('題號'));
     c.appendChild(btn('◀','num',false,()=>{S.q=Math.max(1,S.q-1);load()}));
     const inp=document.createElement('input'); inp.id='qIn'; inp.type='number';
@@ -447,12 +493,20 @@ function buildControls(){
     inp.onchange=go; inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();go()}};
     c.appendChild(inp);
     c.appendChild(btn('▶','num',false,()=>{S.q=Math.min(84,S.q+1);load()}));
-    c.appendChild(eb('框數'));
+    c.appendChild(eb('層數'));
     [[6,1],[5,33],[4,65]].forEach(([nf,first])=>
-      c.appendChild(btn(nf+' 框','pill',cur().n===nf,()=>{S.q=first;load()})));
+      c.appendChild(btn(nf+' 層','pill',cur().n===nf,()=>{S.q=first;load()})));
     c.appendChild(btn('顯示邊和','pill',S.showS,()=>{S.showS=!S.showS;render()},{sh:1}));
-    c.appendChild(btn('清空','pill',false,()=>{S.placed={};render()}));
+  }else{
+    const lim=okList();
+    c.appendChild(eb('層數'));
+    for(let k=2;k<=9;k++){
+      const dead=!(lim[k]||[]).length;
+      c.appendChild(btn(k,'num'+(dead?' dead':''),!dead&&S.n===k,
+        dead?null:()=>{S.n=k;S.placed={};S.sel=null;render()},{n:k}));
+    }
   }
+  c.appendChild(btn('清空','pill',false,()=>{S.placed={};S.sel=null;render()}));
 }
 let tt; function toast(m){const x=$('toast');x.textContent=m;x.className='show';
   clearTimeout(tt);tt=setTimeout(()=>x.className='',2000)}
