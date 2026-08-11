@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>雙槍約瑟夫問題 · Josephus with Two Guns</title>
+<style>
+:root{
+  --ink:#0e1626;
+  --ink2:#16223a;
+  --panel:#1b2942;
+  --line:#2c3d5c;
+  --text:#e9eef8;
+  --muted:#93a3bf;
+  --bone:#ece3d2;
+  --bone2:#dbcfb8;
+  --g1:#e04b3c;
+  --g2:#2f9bdc;
+  --gold:#e8b44a;
+  --alive:#233248;
+  --ok:#57c48f;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:
+    radial-gradient(900px 600px at 20% -10%, #1a2b48 0%, transparent 60%),
+    radial-gradient(700px 500px at 90% 110%, #17303f 0%, transparent 60%),
+    var(--ink);
+  color:var(--text);
+  font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+}
+.mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+
+header{padding:22px 20px 10px;max-width:1400px;margin:0 auto}
+h1{
+  margin:0;font-size:clamp(20px,3.4vw,32px);font-weight:800;letter-spacing:.04em;
+  font-family:"Noto Serif TC","Songti TC",Georgia,serif;
+}
+h1 .en{display:block;font-size:.42em;letter-spacing:.28em;color:var(--muted);font-weight:500;font-family:ui-monospace,monospace;margin-top:6px}
+
+nav.tabs{display:flex;gap:6px;max-width:1400px;margin:14px auto 0;padding:0 20px;flex-wrap:wrap}
+nav.tabs button{
+  background:transparent;border:1px solid var(--line);color:var(--muted);
+  padding:8px 16px;border-radius:999px;cursor:pointer;font-size:14px;font-weight:600;
+  font-family:inherit;transition:.15s;
+}
+nav.tabs button:hover{color:var(--text);border-color:#456}
+nav.tabs button[aria-selected="true"]{background:var(--bone);color:#14203a;border-color:var(--bone)}
+nav.tabs button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+main{max-width:1400px;margin:0 auto;padding:16px 20px 60px}
+section[hidden]{display:none!important}
+
+.layout{display:grid;grid-template-columns:290px minmax(0,1fr) 280px;gap:18px;align-items:start}
+@media(max-width:1120px){.layout{grid-template-columns:1fr}}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+.card h2{margin:0 0 12px;font-size:13px;letter-spacing:.18em;color:var(--muted);font-weight:700}
+
+.field{margin-bottom:12px}
+.field label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:5px}
+input[type=number],select{
+  width:100%;background:var(--ink2);border:1px solid var(--line);color:var(--text);
+  border-radius:8px;padding:8px 10px;font-size:15px;font-family:ui-monospace,monospace;
+}
+input[type=number]:focus,select:focus{outline:2px solid var(--gold);outline-offset:0;border-color:var(--gold)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+
+.gunbox{border:1px solid var(--line);border-radius:10px;padding:11px;margin-bottom:11px;background:#152134}
+.gunbox.g1{border-left:4px solid var(--g1)}
+.gunbox.g2{border-left:4px solid var(--g2)}
+.gunbox .head{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+.gunbox .head b{font-size:14px}
+.gunbox .head span{font-size:11.5px;color:var(--muted)}
+.chk{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);cursor:pointer}
+.chk input{accent-color:var(--gold);width:15px;height:15px}
+
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+button.act{
+  flex:1;min-width:82px;background:var(--bone);color:#14203a;border:none;border-radius:9px;
+  padding:10px 12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s;
+}
+button.act:hover{background:#fff}
+button.act.ghost{background:transparent;color:var(--text);border:1px solid var(--line)}
+button.act.ghost:hover{border-color:var(--bone);background:#1f2f4c}
+button.act:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+button.act[disabled]{opacity:.4;cursor:not-allowed}
+
+.stage{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px;position:relative}
+svg#board{width:100%;height:auto;display:block;touch-action:manipulation}
+.seat-hit{cursor:pointer}
+
+.status{
+  display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center;
+  padding:10px 6px 4px;font-size:14px;
+}
+.pill{background:var(--ink2);border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:13px}
+.pill b{font-family:ui-monospace,monospace;font-size:15px}
+.pill.g1{border-color:var(--g1);color:#ffb3aa}
+.pill.g2{border-color:var(--g2);color:#a8dcff}
+
+.banner{
+  margin-top:10px;border-radius:11px;padding:12px 14px;font-size:15px;font-weight:700;text-align:center;
+  border:1px solid var(--line);background:var(--ink2)
+}
+.banner.win{border-color:var(--ok);color:#9fe8c4;background:#12301f}
+.banner.lose{border-color:var(--g1);color:#ffb3aa;background:#331717}
+
+.log{max-height:430px;overflow:auto;font-size:13px}
+.log .item{padding:6px 8px;border-left:3px solid var(--line);margin-bottom:5px;background:#152134;border-radius:0 7px 7px 0;font-family:ui-monospace,monospace}
+.log .item.g1{border-left-color:var(--g1)}
+.log .item.g2{border-left-color:var(--g2)}
+.log .item.both{border-left-color:var(--gold)}
+.log .item .n{color:var(--muted)}
+.empty{color:var(--muted);font-size:13px;text-align:center;padding:20px 0}
+
+.hint{font-size:12px;color:var(--muted);line-height:1.65;margin-top:8px}
+
+/* 分析頁 */
+.grid-scan{display:flex;flex-wrap:wrap;gap:5px;margin-top:12px}
+.cell{
+  min-width:62px;border-radius:7px;padding:6px 4px;text-align:center;cursor:pointer;
+  font-family:ui-monospace,monospace;border:1px solid rgba(255,255,255,.12);transition:.12s;
+}
+.cell:hover{transform:translateY(-2px);border-color:#fff}
+.cell .n{display:block;font-size:10.5px;opacity:.75}
+.cell .s{display:block;font-size:16px;font-weight:700}
+table.mx{border-collapse:collapse;margin-top:12px;font-family:ui-monospace,monospace;font-size:13px}
+table.mx th,table.mx td{border:1px solid var(--line);padding:5px 8px;text-align:center;min-width:38px}
+table.mx th{color:var(--muted);font-weight:600;background:#152134}
+.scroll{overflow:auto;max-width:100%}
+
+.prose{line-height:1.95;font-size:15px;max-width:820px}
+.prose h3{margin:26px 0 8px;font-size:17px;color:var(--gold);font-family:"Noto Serif TC",serif}
+.prose ul{padding-left:1.3em}
+.prose li{margin:5px 0}
+.prose code{background:var(--ink2);padding:2px 6px;border-radius:5px;font-size:13.5px;font-family:ui-monospace,monospace}
+.prose .q{border-left:3px solid var(--gold);padding:4px 0 4px 14px;margin:10px 0;color:#f2e0bd}
+kbd{background:var(--ink2);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 7px;font-size:12px;font-family:ui-monospace,monospace}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>雙槍約瑟夫問題<span class="en">JOSEPHUS · TWO GUNS</span></h1>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" aria-selected="true" data-tab="game">推演台</button>
+  <button role="tab" aria-selected="false" data-tab="scan">規律分析</button>
+  <button role="tab" aria-selected="false" data-tab="help">規則與探究</button>
+</nav>
+
+<main>
+
+<!-- ══════════ 推演台 ══════════ -->
+<section id="tab-game">
+<div class="layout">
+
+  <!-- 左：設定 -->
+  <div>
+    <div class="card">
+      <h2>設定</h2>
+      <div class="field">
+        <label>圍成一圈的人數 n（2–100）</label>
+        <input type="number" id="in-n" value="15" min="2" max="100">
+      </div>
+
+      <div class="hint" style="margin:-4px 0 12px">槍的<b>指標</b>停在某個座位上，指標本人不算，從下一個活人數起——開局與局中同一條規則。預設兩把槍都在 1 號手上。</div>
+
+      <div class="gunbox g1">
+        <div class="head">
+          <b style="color:var(--g1)">槍 1 ↻ 順時針</b>
+          <label class="chk"><input type="checkbox" id="in-en1" checked>啟用</label>
+        </div>
+        <div class="row2">
+          <div class="field" style="margin:0">
+            <label>間隔 K₁</label>
+            <input type="number" id="in-k1" value="3" min="1" max="99">
+          </div>
+          <div class="field" style="margin:0">
+            <label>指標座位</label>
+            <input type="number" id="in-s1" value="1" min="1" max="100">
+          </div>
+        </div>
+      </div>
+
+      <div class="gunbox g2">
+        <div class="head">
+          <b style="color:var(--g2)" id="lbl-g2">槍 2 ↺ 逆時針</b>
+          <label class="chk"><input type="checkbox" id="in-en2" checked>啟用</label>
+        </div>
+        <div class="row2">
+          <div class="field" style="margin:0">
+            <label>間隔 K₂</label>
+            <input type="number" id="in-k2" value="2" min="1" max="99">
+          </div>
+          <div class="field" style="margin:0">
+            <label>指標座位</label>
+            <input type="number" id="in-s2" value="1" min="1" max="100">
+          </div>
+        </div>
+        <button class="act ghost" id="btn-oppo" style="margin-top:9px;font-size:12.5px;padding:6px">槍2 移到正對面 ⌊n/2⌋+1</button>
+      </div>
+
+      <div class="row2">
+        <div class="field">
+          <label>開火方式</label>
+          <select id="in-mode">
+            <option value="alt">交替開火</option>
+            <option value="sim">同時開火</option>
+            <option value="anti">解藥模式</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>先手</label>
+          <select id="in-first">
+            <option value="1">槍 1</option>
+            <option value="2">槍 2</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>播放速度 <span class="mono" id="lbl-speed">550</span> ms／發</label>
+        <input type="range" id="in-speed" min="80" max="1600" step="20" value="550" style="width:100%;accent-color:var(--gold)">
+      </div>
+
+      <label class="chk" style="margin-top:4px"><input type="checkbox" id="in-preview" checked>顯示瞄準預覽</label>
+      <label class="chk" style="margin-top:7px"><input type="checkbox" id="in-path" checked>顯示數數過程</label>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h2>挑戰</h2>
+      <div class="hint" style="margin-top:0">直接點圓桌上的座位選一個位子，開始後看看你能不能活到最後。</div>
+      <div class="btns" style="margin-top:11px">
+        <button class="act ghost" id="btn-clearseat">清除選擇</button>
+        <button class="act ghost" id="btn-safe">算出安全位置</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 中：圓桌 -->
+  <div>
+    <div class="stage">
+      <svg id="board" viewBox="0 0 720 720" role="img" aria-label="圓桌與兩把槍的位置"></svg>
+      <div class="status" id="status"></div>
+      <div id="banner"></div>
+    </div>
+    <div class="btns" style="margin-top:12px">
+      <button class="act" id="btn-step">下一發</button>
+      <button class="act" id="btn-auto">自動播放</button>
+      <button class="act ghost" id="btn-end">直接看結果</button>
+      <button class="act ghost" id="btn-reset">重設</button>
+    </div>
+    <div class="hint">鍵盤：<kbd>空白鍵</kbd> 下一發　<kbd>A</kbd> 自動播放　<kbd>R</kbd> 重設</div>
+  </div>
+
+  <!-- 右：紀錄 -->
+  <div class="card">
+    <h2>射擊紀錄</h2>
+    <div class="log" id="log"></div>
+  </div>
+
+</div>
+</section>
+
+<!-- ══════════ 分析 ══════════ -->
+<section id="tab-scan" hidden>
+  <div class="card">
+    <h2>掃描 A · 生還座位隨 n 的變化</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:11px">
+      <div class="field"><label>K₁（槍1）</label><input type="number" id="sa-k1" value="3" min="1" max="50"></div>
+      <div class="field"><label>K₂（槍2）</label><input type="number" id="sa-k2" value="2" min="1" max="50"></div>
+      <div class="field"><label>槍2 指標</label>
+        <select id="sa-s2rule">
+          <option value="one">同在 1 號（兩槍同點）</option>
+          <option value="oppo">正對面 ⌊n/2⌋+1</option>
+        </select>
+      </div>
+      <div class="field"><label>開火方式</label>
+        <select id="sa-mode"><option value="alt">交替</option><option value="sim">同時</option><option value="anti">解藥</option></select>
+      </div>
+      <div class="field"><label>先手</label>
+        <select id="sa-first"><option value="1">槍1</option><option value="2">槍2</option></select>
+      </div>
+      <div class="field"><label>啟用</label>
+        <select id="sa-en"><option value="12">兩把槍</option><option value="1">只有槍1</option><option value="2">只有槍2</option></select>
+      </div>
+      <div class="field"><label>n 從</label><input type="number" id="sa-from" value="2" min="2" max="400"></div>
+      <div class="field"><label>n 到</label><input type="number" id="sa-to" value="80" min="2" max="400"></div>
+    </div>
+    <div class="btns" style="max-width:280px"><button class="act" id="btn-scanA">產生表格</button></div>
+    <div class="hint">槍1 指標固定在 1 號。顏色代表生還座位在圈中的相對位置；點任一格可把該情形載入推演台。</div>
+    <svg id="chartA" viewBox="0 0 900 340" style="width:100%;height:auto;margin-top:14px"></svg>
+    <div class="grid-scan" id="gridA"></div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2>掃描 B · 固定人數，K₁ × K₂ 對照表</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:11px">
+      <div class="field"><label>人數 n</label><input type="number" id="sb-n" value="20" min="2" max="200"></div>
+      <div class="field"><label>K 最大到</label><input type="number" id="sb-kmax" value="10" min="2" max="20"></div>
+      <div class="field"><label>開火方式</label>
+        <select id="sb-mode"><option value="alt">交替</option><option value="sim">同時</option><option value="anti">解藥</option></select>
+      </div>
+      <div class="field"><label>先手</label>
+        <select id="sb-first"><option value="1">槍1</option><option value="2">槍2</option></select>
+      </div>
+      <div class="field"><label>槍2 指標</label>
+        <select id="sb-rule">
+          <option value="one">同在 1 號</option>
+          <option value="oppo">正對面 ⌊n/2⌋+1</option>
+        </select>
+      </div>
+    </div>
+    <div class="btns" style="max-width:280px"><button class="act" id="btn-scanB">產生表格</button></div>
+    <div class="hint">槍1 指標固定在 1 號。表格中的數字是最後的生還座位（<span style="color:var(--gold)">—</span> 表示全滅，<span style="color:var(--ok)">僵k</span> 表示僵局、k 人全數生還）。</div>
+    <div class="scroll" id="mxB"></div>
+  </div>
+</section>
+
+<!-- ══════════ 說明 ══════════ -->
+<section id="tab-help" hidden>
+  <div class="card prose">
+    <h3>基本設定</h3>
+    <p>n 個人依編號 1、2、3 … n <b>順時針</b>圍成一圈。場上有兩把槍：</p>
+    <ul>
+      <li><b style="color:var(--g1)">槍 1</b>：順時針方向數，每次數到第 K₁ 個活人就開槍。</li>
+      <li><b style="color:var(--g2)">槍 2</b>：逆時針方向數，每次數到第 K₂ 個活人就開槍。</li>
+    </ul>
+
+    <h3>數數規則（重要）</h3>
+    <ul>
+      <li>每把槍有一個<b>指標</b>，停在某個座位上。開火時<b>指標本人不算</b>，沿自己的方向數過去的第 K 個活人中槍，指標隨即移到那個人身上。死人一律跳過。</li>
+      <li>開局的指標就是<b>起始座位</b>（預設兩把槍都在 1 號手上），適用的是<b>同一條規則</b>——第一發和之後每一發沒有任何差別。</li>
+      <li>兩把槍<b>各自記自己的位置</b>，互不影響數數，但都會被對方造成的空位影響（死人要跳過）。</li>
+      <li>若一把槍的所在位置被對方的子彈清掉，它會退回相鄰的活人，再依原方向繼續數。</li>
+    </ul>
+
+    <h3>關於起始位置的定義</h3>
+    <p>本工具採用的是「<b>指標停在座位上、指標自己不算</b>」這個定義。它的好處是開局狀態和局中狀態屬於同一個狀態空間：指標永遠停在一個座位上，規則從第一發起就完全一致，兩把槍說「都在 1 號手上」時，機制上也真的間距為 0。</p>
+    <p>另外兩種常見說法（槍從場外縫隙進場、或槍在 1 號手上但 1 號要算），翻譯成同一種狀態語言後，隱含的指標其實是 (n, 1) 與 (n, 2)——兩把槍被偷偷岔開了 1 格和 2 格，第一發的間距增量會和後續不一致。因此本工具不採用。</p>
+    <p class="hint" style="font-size:13px">（這一節的完整推導與實測數據待補。）</p>
+
+    <h3>開火方式</h3>
+    <ul>
+      <li><b>交替開火</b>：槍1、槍2 輪流各開一發，直到只剩 1 人。剩下的人就是生還者。</li>
+      <li><b>同時開火</b>：每回合兩把槍<b>同時瞄準、同時擊發</b>（都用開火前的場上狀態計算目標）。
+        若兩把槍鎖定同一個人，那個人陣亡、另一發算空砲。<br>
+        這個模式會出現有趣的結果：<b>剩 2 人且兩槍打中不同人時會全滅，沒有生還者。</b></li>
+      <li><b>解藥模式</b>：槍 2 改當<b>免死金牌</b>，兩者每回合<b>同時</b>往各自方向傳（交替傳的話「重合」無法良好定義）。
+        若它們落在<b>同一個人</b>身上，解藥發動、該回合<b>無人死亡</b>，兩個指標都停在那個活人身上；否則只有槍的目標陣亡，金牌純粹移動。<br>
+        這個模式會出現古典約瑟夫沒有的第三種結局：<b>僵局</b>。解藥發動後兩個指標會停在同一人身上，
+        此時下一回合是否再次重合，條件是<b>當下的存活人數 M 整除 K₁ + K₂</b>——一旦成立就每回合都成立，永遠不會再死人。
+        實測：<b>僵局 ⟺ 曾有某次解藥發動時 M | (K₁+K₂)</b>，n ≤ 45、K ≤ 12 共 6480 組，0 例外。
+        其中 K₁ + K₂ ≡ 0（mod n）是「開局就僵住、全員生還」的特例，例如 n=10、K₁=3、K₂=7。</li>
+    </ul>
+
+    <h3>單槍退化：古典約瑟夫</h3>
+    <p>把槍 2 關掉，就退化成古典的約瑟夫問題（指標在 1 號、指標不算自己）：</p>
+    <ul>
+      <li>K₁=2、n=41 → 生還者 <code>20</code>。寫成 n = 2ᵐ + L，本定義下的公式是 <code>2L+2</code>（41 = 2⁵+9，2·9+2 = 20），只在 n = 2ᵐ⁺¹−1 時繞回 1。</li>
+      <li>K₁=3、n=41 → 生還者 <code>32</code>，就是約瑟夫本人站的位置。</li>
+      <li>K₁=2 時把 n 從 2 掃到 100，生還座位會出現漂亮的鋸齒：每次 n 經過 2 的次方就歸 2 重來。</li>
+      <li>要和 OEIS A006257 之類的現成資料對照時，換算式是「本工具座位 = (該數列值 mod n) + 1」。那些資料採用的是「第一個被數到的人算第 1 個」，反推成指標等於把槍放在 n 號手上——單槍時只是原點選在哪裡的問題，兩者都對。</li>
+    </ul>
+
+    <h3>給學生的探究問題</h3>
+    <div class="q">Q1　K₁ = K₂ = 1 時，兩把槍會從兩邊往中間吃。n 是奇數／偶數時，生還者分別在哪裡？能寫出公式嗎？</div>
+    <div class="q">Q2　固定 K₁ = 2、K₂ = 2，把 n 從 2 掃到 100。生還座位還有「經過 2 的次方就歸 1」的規律嗎？若沒有，改成什麼規律？</div>
+    <div class="q">Q3　「交替開火」中，先手換人（槍2 先開）會不會改變生還者？什麼情況下答案不變？</div>
+    <div class="q">Q4　在「同時開火」模式下，什麼樣的 n、K₁、K₂ 會導致全滅？把 K₁×K₂ 對照表裡的「—」標出來找規律。</div>
+    <div class="q">Q5　兩把槍都在 1 號手上時，整個局面對 1 號左右對稱。取 K₁ = K₂、同時開火，這個對稱性會一路保持到最後嗎？若會，生還者只可能站在哪些位置？先猜再驗（提示：試 n=8、K=1）。</div>
+    <div class="q">Q6　把整個過程反過來想：如果你可以先選座位，是否存在一個「不管 K₂ 怎麼設都相對安全」的位置？</div>
+    <div class="q">Q7　把槍2 的指標從 1 號移到正對面，答案會變嗎？變化幅度和 K₁、K₂ 有沒有關係？</div>
+    <div class="q">Q8　解藥模式下，為什麼「解藥發動時存活人數 M 整除 K₁+K₂」就會鎖死成永久僵局？（提示：先證明解藥發動後兩個指標必定同在一處，再算從同一點出發的重合條件。）</div>
+    <div class="q">Q9　解藥模式若兩者從<b>不同</b>位置出發，還會有僵局嗎？先猜再用推演台試。</div>
+
+    <h3>操作提示</h3>
+    <ul>
+      <li>圓桌外圈的兩個標記就是兩把槍的目前位置，虛線是它下一發要打的人。</li>
+      <li>開火後圈內會標出數數的順序（1、2、… K），方便全班一起跟著數。</li>
+      <li>「規律分析」頁可以一次跑幾百種情形，適合讓學生找規律再回頭驗證。</li>
+    </ul>
+  </div>
+</section>
+
+</main>
+
+<script>
+"use strict";
+
+/* ═════════════ ENGINE START ═════════════ */
+function buildState(cfg){
+  const n = cfg.n;
+  const nextL = new Array(n), prevL = new Array(n);
+  for(let i=0;i<n;i++){ nextL[i]=(i+1)%n; prevL[i]=(i-1+n)%n; }
+  const guns = [
+    {id:1, k:cfg.k1, dir: 1, pos:(cfg.s1-1+n)%n, lastTarget:null, en:!!cfg.en1},
+    {id:2, k:cfg.k2, dir:-1, pos:(cfg.s2-1+n)%n, lastTarget:null, en:!!cfg.en2}
+  ];
+  const base = (cfg.first===2) ? [1,0] : [0,1];
+  const order = base.filter(i=>guns[i].en);
+  return {
+    n, cfg, nextL, prevL,
+    alive:new Array(n).fill(true), count:n,
+    guns, order, turnIdx:0,
+    shot:0, log:[], finished:(order.length===0||n<=1), survivors:[], lastEvent:null,
+    deadlock:false, seen:new Set()
+  };
+}
+
+// 指標停在座位上、指標自己不算：從 g.pos 沿方向數 k 個活人
+// 回傳數過的座位陣列，最後一個就是目標
+function pathOf(st,g){
+  if(st.count<=0) return [];
+  const path=[]; let idx=g.pos, steps=g.k;
+  const nx = (g.dir===1)? st.nextL : st.prevL;
+  while(steps>0){ idx = nx[idx]; path.push(idx); steps--; }
+  return path;
+}
+
+function removeSeat(st,v){
+  const p = st.prevL[v], q = st.nextL[v];
+  st.nextL[p]=q; st.prevL[q]=p;
+  st.alive[v]=false; st.count--;
+  for(const g of st.guns){
+    if(g.pos===v){ g.pos = (g.dir===1)? p : q; }
+  }
+}
+
+function stepState(st){
+  if(st.finished) return false;
+  if(st.cfg.mode==='sim'){
+    const shots=[];
+    for(const gi of st.order){
+      const g=st.guns[gi], path=pathOf(st,g);
+      shots.push({g, id:g.id, path, target:path[path.length-1]});
+    }
+    st.shot++;
+    // 先把每把槍移到自己的目標上，removeSeat 才會正確地把它退到相鄰的活人
+    for(const s of shots){ s.g.pos = s.target; s.g.lastTarget = s.target; }
+    const targets=[...new Set(shots.map(s=>s.target))];
+    for(const v of targets) removeSeat(st,v);
+    st.lastEvent={shot:st.shot, shots};
+    st.log.push({shot:st.shot, ids:shots.map(s=>s.id), targets:shots.map(s=>s.target),
+                 dup:targets.length<shots.length, remain:st.count});
+  } else if(st.cfg.mode==='anti'){
+    // 槍1 開槍、槍2 是免死金牌，兩者同時傳遞；落在同一人則該回合無人死亡
+    const g1=st.guns[0], g2=st.guns[1];
+    const pa=pathOf(st,g1), pb=pathOf(st,g2);
+    const v1=pa[pa.length-1], v2=pb[pb.length-1];
+    const saved = (v1===v2);
+    st.shot++;
+    g1.pos=v1; g1.lastTarget=v1;
+    g2.pos=v2; g2.lastTarget=v2;
+    if(!saved) removeSeat(st,v1);
+    st.lastEvent={shot:st.shot, saved, shots:[{g:g1,id:1,path:pa,target:v1},{g:g2,id:2,path:pb,target:v2}]};
+    st.log.push({shot:st.shot, ids:[1,2], targets:[v1,v2], saved, remain:st.count});
+    if(saved){
+      // 存活集合未變、指標移動又是決定性的 → 同一組指標出現兩次即為永久僵局
+      const key=g1.pos+','+g2.pos;
+      if(st.seen.has(key)) st.deadlock=true; else st.seen.add(key);
+    } else st.seen.clear();
+  } else {
+    const g = st.guns[st.order[st.turnIdx]];
+    const path = pathOf(st,g), v = path[path.length-1];
+    st.shot++;
+    g.pos=v; g.lastTarget=v;
+    removeSeat(st,v);
+    st.lastEvent={shot:st.shot, shots:[{g, id:g.id, path, target:v}]};
+    st.log.push({shot:st.shot, ids:[g.id], targets:[v], dup:false, remain:st.count});
+    st.turnIdx=(st.turnIdx+1)%st.order.length;
+  }
+  if(st.count<=1 || st.deadlock){
+    st.finished=true;
+    st.survivors=[];
+    for(let i=0;i<st.n;i++) if(st.alive[i]) st.survivors.push(i);
+  }
+  return true;
+}
+
+function solve(cfg){
+  const st=buildState(cfg);
+  let guard=0;
+  while(!st.finished && guard++ < 200000) stepState(st);
+  return st;
+}
+/* ═════════════ ENGINE END ═════════════ */
+
+if(typeof module!=="undefined"&&module.exports){
+  module.exports={buildState,pathOf,removeSeat,stepState,solve};
+}
+
+/* ───────── UI ───────── */
+const $ = s=>document.querySelector(s);
+const NS="http://www.w3.org/2000/svg";
+let st=null, timer=null, playerSeat=null, lastN=15;
+
+function readCfg(){
+  const n = clampInt($("#in-n").value,2,100,15);
+  $("#in-n").value=n;
+  const cfg={
+    n,
+    k1: clampInt($("#in-k1").value,1,99,3),
+    k2: clampInt($("#in-k2").value,1,99,2),
+    s1: clampInt($("#in-s1").value,1,n,1),
+    s2: clampInt($("#in-s2").value,1,n,1),
+    en1: $("#in-en1").checked,
+    en2: $("#in-en2").checked,
+    mode: $("#in-mode").value,
+    first: +$("#in-first").value
+  };
+  if(cfg.mode==='anti'){ cfg.en1=cfg.en2=true; $("#in-en1").checked=$("#in-en2").checked=true; }
+  if(!cfg.en1 && !cfg.en2){ $("#in-en1").checked=true; cfg.en1=true; }
+  const anti = cfg.mode==='anti';
+  $("#lbl-g2").textContent = anti ? "免死金牌 ↺ 逆時針" : "槍 2 ↺ 逆時針";
+  $("#lbl-g2").style.color = anti ? "var(--ok)" : "var(--g2)";
+  document.querySelector('.gunbox.g2').style.borderLeftColor = anti ? "var(--ok)" : "var(--g2)";
+  $("#in-k1").value=cfg.k1; $("#in-k2").value=cfg.k2;
+  $("#in-s1").value=cfg.s1; $("#in-s2").value=cfg.s2;
+  $("#in-s1").max=n; $("#in-s2").max=n;
+  return cfg;
+}
+function clampInt(v,lo,hi,d){ let x=parseInt(v,10); if(!isFinite(x)) x=d; return Math.max(lo,Math.min(hi,x)); }
+
+function reset(){
+  stopAuto();
+  const cfg=readCfg();
+  if(playerSeat!==null && playerSeat>=cfg.n) playerSeat=null;
+  st=buildState(cfg);
+  render();
+}
+
+/* ── 圓桌繪製 ── */
+const CX=360, CY=360, R=252;
+function angOf(i,n){ return (-90 + i*360/n) * Math.PI/180; }
+function ptOf(i,n,r){ const a=angOf(i,n); return [CX+r*Math.cos(a), CY+r*Math.sin(a)]; }
+
+function gunCol(id){ return id===1 ? "var(--g1)" : (st.cfg.mode==='anti' ? "var(--ok)" : "var(--g2)"); }
+function render(){
+  const n=st.n;
+  const anti = st.cfg.mode==='anti';
+  const seatR = Math.max(5.5, Math.min(22, (2*Math.PI*R/n)*0.40));
+  const fs = Math.max(7, Math.min(19, seatR*1.05));
+  const showPreview = $("#in-preview").checked && !st.finished && st.count>1;
+  const showPath = $("#in-path").checked && st.lastEvent;
+
+  let s='';
+  // 圓桌桌面
+  s+=`<circle cx="${CX}" cy="${CY}" r="${R+seatR+14}" fill="var(--bone)" opacity=".07"/>`;
+  s+=`<circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="var(--bone2)" stroke-opacity=".28" stroke-width="1.5"/>`;
+
+  // 數數過程的連線
+  if(showPath){
+    for(const sh of st.lastEvent.shots){
+      const col = gunCol(sh.id);
+      if(sh.path.length>1){
+        const d = sh.path.map((idx,j)=>{ const [x,y]=ptOf(idx,n,R); return (j?"L":"M")+x.toFixed(1)+" "+y.toFixed(1); }).join(" ");
+        s+=`<path d="${d}" fill="none" stroke="${col}" stroke-opacity=".38" stroke-width="2" stroke-dasharray="4 4"/>`;
+      }
+      if(sh.path.length<=24){
+        sh.path.forEach((idx,j)=>{
+          const [x,y]=ptOf(idx,n,R-seatR-13);
+          s+=`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" fill="${col}" font-size="${Math.max(9,fs*0.7)}" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace,monospace" opacity=".9">${j+1}</text>`;
+        });
+      }
+    }
+  }
+
+  // 瞄準預覽
+  if(showPreview){
+    for(const gi of st.order){
+      const g=st.guns[gi];
+      const active = (st.cfg.mode==='sim') || (st.order[st.turnIdx]===gi);
+      const path=pathOf(st,g); if(!path.length) continue;
+      const t=path[path.length-1];
+      const col = gunCol(g.id);
+      const from = ptOf(g.lastTarget!==null?g.lastTarget:(g.id===1?st.cfg.s1-1:st.cfg.s2-1), n, R+34);
+      const to = ptOf(t,n,R);
+      s+=`<line x1="${from[0].toFixed(1)}" y1="${from[1].toFixed(1)}" x2="${to[0].toFixed(1)}" y2="${to[1].toFixed(1)}" stroke="${col}" stroke-width="${active?2:1.2}" stroke-dasharray="6 5" opacity="${active?.75:.28}"/>`;
+      s+=`<circle cx="${to[0].toFixed(1)}" cy="${to[1].toFixed(1)}" r="${(seatR+6).toFixed(1)}" fill="none" stroke="${col}" stroke-width="${active?2.2:1.2}" opacity="${active?.9:.35}"/>`;
+    }
+  }
+
+  // 座位
+  const hitSeats=[];
+  for(let i=0;i<n;i++){
+    const [x,y]=ptOf(i,n,R);
+    const alive=st.alive[i];
+    const isPlayer=(playerSeat===i);
+    const isSurv=st.finished&&st.survivors.includes(i);
+    let fill = alive? "var(--alive)" : "#0b1220";
+    let stroke = alive? "var(--bone2)" : "#2a3550";
+    let sw = 1.6, op = alive?1:.42;
+    let justHit=false, hitCol=null;
+    if(st.lastEvent) for(const sh of st.lastEvent.shots){ if(sh.target===i){ justHit=true; hitCol = sh.id===1?"var(--g1)":"var(--g2)"; } }
+    if(justHit){ fill="#2a1420"; stroke=hitCol; sw=2.6; op=.95; }
+    if(st.lastEvent && st.lastEvent.saved && st.lastEvent.shots[0].target===i){ fill="#123a2a"; stroke="var(--ok)"; sw=3; op=1; }
+    if(isSurv){ fill="#16402c"; stroke="var(--ok)"; sw=3; op=1; }
+
+    if(isPlayer) s+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(seatR+5.5).toFixed(1)}" fill="none" stroke="var(--gold)" stroke-width="2.4"/>`;
+    s+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${seatR.toFixed(1)}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" opacity="${op}"/>`;
+    s+=`<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" fill="${alive?'var(--text)':'#5d6c88'}" font-size="${fs.toFixed(1)}" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace,monospace" font-weight="${isSurv?700:500}" opacity="${op}">${i+1}</text>`;
+    if(!alive) s+=`<line x1="${(x-seatR*.75).toFixed(1)}" y1="${(y-seatR*.75).toFixed(1)}" x2="${(x+seatR*.75).toFixed(1)}" y2="${(y+seatR*.75).toFixed(1)}" stroke="#7d3b46" stroke-width="1.6" opacity=".8"/>`;
+    hitSeats.push(`<circle class="seat-hit" data-i="${i}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${Math.max(seatR+4,13).toFixed(1)}" fill="transparent"/>`);
+  }
+
+  // 兩把槍的標記
+  for(const g of st.guns){
+    if(!g.en) continue;
+    const base = g.lastTarget!==null ? g.lastTarget : (g.id===1?st.cfg.s1-1:st.cfg.s2-1);
+    const [x,y]=ptOf(base,n,R+36);
+    const a=angOf(base,n);
+    const deg=a*180/Math.PI+90;
+    const col = gunCol(g.id);
+    const active = !st.finished && (st.cfg.mode==='sim' || st.order[st.turnIdx]===st.guns.indexOf(g));
+    const shape = (anti && g.id===2)
+      ? `<path d="M0,-10 L8,-6 L8,3 L0,10 L-8,3 L-8,-6 Z" fill="${col}"/><path d="M0,-4 L0,4 M-4,0 L4,0" stroke="var(--ink)" stroke-width="2.2"/>`
+      : `<path d="M0,-11 L9,7 L0,2 L-9,7 Z" fill="${col}"/>`;
+    s+=`<g transform="translate(${x.toFixed(1)},${y.toFixed(1)}) rotate(${deg.toFixed(1)})" opacity="${active?1:.5}">${shape}</g>`;
+    const [lx,ly]=ptOf(base,n,R+64);
+    s+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" fill="${col}" font-size="14" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace,monospace" opacity="${active?1:.55}">${g.id===1?'↻':(anti?'✚':'↺')}${g.k}</text>`;
+  }
+
+  // 中央資訊
+  s+=`<text x="${CX}" y="${CY-16}" fill="var(--muted)" font-size="13" text-anchor="middle" letter-spacing="4">剩餘</text>`;
+  s+=`<text x="${CX}" y="${CY+22}" fill="var(--text)" font-size="46" font-weight="800" text-anchor="middle" font-family="ui-monospace,monospace">${st.count}</text>`;
+  if(st.cfg.mode==='sim') s+=`<text x="${CX}" y="${CY+48}" fill="var(--gold)" font-size="12" text-anchor="middle" letter-spacing="2">同時開火</text>`;
+  if(anti) s+=`<text x="${CX}" y="${CY+48}" fill="var(--ok)" font-size="12" text-anchor="middle" letter-spacing="2">解藥模式</text>`;
+
+  $("#board").innerHTML = s + hitSeats.join("");
+
+  renderStatus(); renderLog(); renderBanner();
+}
+
+function renderStatus(){
+  const el=$("#status");
+  let h=`<span class="pill">已開 <b>${st.shot}</b> 發</span>`;
+  if(!st.finished){
+    if(st.cfg.mode==='anti'){ h+=`<span class="pill" style="border-color:var(--ok);color:#9fe8c4">下一回合：槍 ↻${st.guns[0].k} 與 金牌 ↺${st.guns[1].k} 同時傳</span>`; }
+    else if(st.cfg.mode==='sim'){ h+=`<span class="pill">下一回合：<b>兩把槍同時</b></span>`; }
+    else{
+      const g=st.guns[st.order[st.turnIdx]];
+      h+=`<span class="pill g${g.id}">下一發：槍 ${g.id}　${g.id===1?'順時針':'逆時針'} 數 ${g.k}</span>`;
+    }
+  }
+  if(playerSeat!==null) h+=`<span class="pill" style="border-color:var(--gold);color:var(--gold)">你的位子 <b>${playerSeat+1}</b></span>`;
+  el.innerHTML=h;
+}
+
+function renderLog(){
+  const el=$("#log");
+  if(!st.log.length){ el.innerHTML=`<div class="empty">還沒開火</div>`; return; }
+  el.innerHTML = st.log.map(e=>{
+    if(e.saved!==undefined){
+      const t=`<div class="item ${e.saved?'both':'g1'}" ${e.saved?'style="border-left-color:var(--ok)"':''}><span class="n">${String(e.shot).padStart(2,'0')}</span>　`+
+        (e.saved ? `解藥發動！#${e.targets[0]+1} 獲救` : `槍 → #${e.targets[0]+1}　金牌 → #${e.targets[1]+1}`)+
+        `　<span class="n">剩 ${e.remain}</span></div>`;
+      return t;
+    }
+    const cls = e.ids.length>1 ? "both" : ("g"+e.ids[0]);
+    let txt;
+    if(e.ids.length>1){
+      txt = e.dup
+        ? `槍1、槍2 同時鎖定 #${e.targets[0]+1}（一發空砲）`
+        : `槍1 → #${e.targets[0]+1}　槍2 → #${e.targets[1]+1}`;
+    } else {
+      txt = `槍${e.ids[0]} → #${e.targets[0]+1}`;
+    }
+    return `<div class="item ${cls}"><span class="n">${String(e.shot).padStart(2,'0')}</span>　${txt}　<span class="n">剩 ${e.remain}</span></div>`;
+  }).join("");
+  el.scrollTop = el.scrollHeight;
+}
+
+function renderBanner(){
+  const el=$("#banner");
+  if(!st.finished){ el.innerHTML=""; return; }
+  if(st.deadlock){
+    const list=st.survivors.map(i=>i+1);
+    const mine = playerSeat!==null && st.survivors.includes(playerSeat);
+    el.innerHTML=`<div class="banner ${playerSeat===null||mine?'win':'lose'}">僵局！解藥每回合都攔下子彈，再也不會有人死亡。<br>
+      <span class="mono">${list.length}</span> 人全數生還${list.length<=20?`：${list.join('、')}`:''}${playerSeat!==null?(mine?'　你也在其中。':'　可惜你早就出局了。'):''}</div>`;
+    return;
+  }
+  if(!st.survivors.length){
+    el.innerHTML=`<div class="banner">全滅 — 最後兩人被兩把槍同時帶走，沒有人生還。</div>`;
+    return;
+  }
+  const sv=st.survivors[0];
+  if(playerSeat===null){
+    el.innerHTML=`<div class="banner win">生還者：第 <span class="mono">${sv+1}</span> 號　（共 ${st.shot} 發）</div>`;
+  } else if(playerSeat===sv){
+    el.innerHTML=`<div class="banner win">你活下來了！第 <span class="mono">${sv+1}</span> 號就是唯一的生還者。</div>`;
+  } else {
+    const e=st.log.find(x=>x.targets.includes(playerSeat));
+    el.innerHTML=`<div class="banner lose">你在第 ${e?e.shot:'?'} 發被槍 ${e?e.ids[e.targets.indexOf(playerSeat)]:'?'} 擊中。安全位置其實是第 <span class="mono">${sv+1}</span> 號。</div>`;
+  }
+}
+
+/* ── 操作 ── */
+function doStep(){ if(!st||st.finished) return; stepState(st); render(); if(st.finished) stopAuto(); }
+function startAuto(){
+  if(!st||st.finished) return;
+  stopAuto();
+  timer=setInterval(()=>{ if(!st||st.finished){stopAuto();return;} stepState(st); render(); }, +$("#in-speed").value);
+  $("#btn-auto").textContent="暫停";
+}
+function stopAuto(){ if(timer){clearInterval(timer); timer=null;} $("#btn-auto").textContent="自動播放"; }
+function runToEnd(){ stopAuto(); if(!st) return; let g=0; while(!st.finished && g++<200000) stepState(st); render(); }
+
+$("#btn-step").onclick=doStep;
+$("#btn-auto").onclick=()=>{ timer?stopAuto():startAuto(); };
+$("#btn-end").onclick=runToEnd;
+$("#btn-reset").onclick=reset;
+$("#btn-clearseat").onclick=()=>{ playerSeat=null; render(); };
+const oppoSeat=n=>Math.min(n, 1+Math.floor(n/2));
+function seatsFor(rule,n){ return [1, rule==="oppo"? oppoSeat(n) : 1]; }
+$("#btn-oppo").onclick=()=>{ $("#in-s2").value=oppoSeat(clampInt($("#in-n").value,2,100,15)); reset(); };
+$("#btn-safe").onclick=()=>{
+  const cfg=readCfg();
+  const r=solve(cfg);
+  if(r.deadlock){
+    $("#banner").innerHTML=`<div class="banner win">這組設定會進入僵局，<span class="mono">${r.survivors.length}</span> 人全數生還——每個位置都安全。</div>`;
+    return;
+  }
+  $("#banner").innerHTML = r.survivors.length
+    ? `<div class="banner win">這組設定的安全位置是第 <span class="mono">${r.survivors[0]+1}</span> 號（全程 ${r.shot} 發）。</div>`
+    : `<div class="banner">這組設定會全滅，沒有安全位置。</div>`;
+};
+
+$("#board").addEventListener("click",e=>{
+  const t=e.target.closest(".seat-hit"); if(!t) return;
+  const i=+t.dataset.i;
+  if(st.shot>0){ return; }
+  playerSeat = (playerSeat===i)? null : i;
+  render();
+});
+
+["in-n","in-k1","in-k2","in-s1","in-s2","in-en1","in-en2","in-mode","in-first"].forEach(id=>{
+  const el=document.getElementById(id);
+  el.addEventListener("change",()=>{
+    if(id==="in-n"){
+      const n=clampInt($("#in-n").value,2,100,15);
+      if(+$("#in-s2").value > n) $("#in-s2").value = 1;
+      if(+$("#in-s1").value > n) $("#in-s1").value = 1;
+      lastN = n;
+    }
+    reset();
+  });
+});
+$("#in-speed").addEventListener("input",e=>{
+  $("#lbl-speed").textContent=e.target.value;
+  if(timer) startAuto();
+});
+$("#in-preview").addEventListener("change",render);
+$("#in-path").addEventListener("change",render);
+
+document.addEventListener("keydown",e=>{
+  if(/input|select|textarea/i.test(e.target.tagName)) return;
+  if($("#tab-game").hidden) return;
+  if(e.code==="Space"){ e.preventDefault(); doStep(); }
+  else if(e.key==="a"||e.key==="A"){ timer?stopAuto():startAuto(); }
+  else if(e.key==="r"||e.key==="R"){ reset(); }
+});
+
+/* ── 分頁 ── */
+document.querySelectorAll("nav.tabs button").forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll("nav.tabs button").forEach(x=>x.setAttribute("aria-selected", x===b));
+    ["game","scan","help"].forEach(t=>{ document.getElementById("tab-"+t).hidden = (t!==b.dataset.tab); });
+    if(b.dataset.tab!=="game") stopAuto();
+  };
+});
+
+/* ── 掃描 A ── */
+function heat(ratio){
+  const h = 210 - 210*ratio;
+  return `hsl(${h.toFixed(0)} 62% 42%)`;
+}
+$("#btn-scanA").onclick=()=>{
+  const k1=clampInt($("#sa-k1").value,1,50,3), k2=clampInt($("#sa-k2").value,1,50,2);
+  const rule=$("#sa-s2rule").value;
+  const mode=$("#sa-mode").value, first=+$("#sa-first").value, en=$("#sa-en").value;
+  let from=clampInt($("#sa-from").value,2,400,2), to=clampInt($("#sa-to").value,2,400,80);
+  if(to<from){ const t=from; from=to; to=t; }
+  if(to-from>300) to=from+300;
+  $("#sa-from").value=from; $("#sa-to").value=to;
+
+  const rows=[];
+  for(let n=from;n<=to;n++){
+    const [ps1,ps2]=seatsFor(rule,n);
+    const cfg={n,k1,k2,s1:ps1,s2:ps2,en1:en!=="2",en2:en!=="1",mode,first};
+    const r=solve(cfg);
+    rows.push({n, dl:r.deadlock, cnt:r.survivors.length,
+               sv: r.deadlock? null : (r.survivors.length? r.survivors[0]+1 : null), s1:ps1, s2:ps2});
+  }
+  $("#gridA").innerHTML = rows.map(r=>{
+    const bg = r.dl? "#1c4436" : (r.sv===null? "#3a2b12" : heat((r.sv-1)/Math.max(1,r.n-1)));
+    const lab = r.dl? ('僵'+r.cnt) : (r.sv===null?'—':r.sv);
+    return `<div class="cell" style="background:${bg}" data-n="${r.n}" data-k1="${k1}" data-k2="${k2}" data-s1="${r.s1}" data-s2="${r.s2}" data-rule="${rule}" data-mode="${mode}" data-first="${first}" data-en="${en}">
+      <span class="n">n=${r.n}</span><span class="s">${lab}</span></div>`;
+  }).join("");
+  drawChartA(rows,from,to);
+};
+$("#gridA").addEventListener("click",e=>{
+  const c=e.target.closest(".cell"); if(!c) return;
+  $("#in-n").value=c.dataset.n; $("#in-k1").value=c.dataset.k1; $("#in-k2").value=c.dataset.k2;
+  $("#in-s1").value=c.dataset.s1; $("#in-s2").value=c.dataset.s2;
+  $("#in-mode").value=c.dataset.mode; $("#in-first").value=c.dataset.first;
+  $("#in-en1").checked = c.dataset.en!=="2"; $("#in-en2").checked = c.dataset.en!=="1";
+  playerSeat=null; reset();
+  document.querySelector('nav.tabs button[data-tab="game"]').click();
+  window.scrollTo({top:0,behavior:"smooth"});
+});
+function drawChartA(rows,from,to){
+  const W=900,H=340,L=48,Rr=14,T=16,B=30;
+  const maxN=to;
+  let s=`<rect x="0" y="0" width="${W}" height="${H}" fill="#152134" rx="10"/>`;
+  const px=n=>L+(n-from)/Math.max(1,(to-from))*(W-L-Rr);
+  const py=v=>T+(1-(v-1)/Math.max(1,maxN-1))*(H-T-B);
+  for(let g=0;g<=4;g++){
+    const y=T+g*(H-T-B)/4, val=Math.round(maxN-(g)*(maxN-1)/4);
+    s+=`<line x1="${L}" y1="${y}" x2="${W-Rr}" y2="${y}" stroke="#2c3d5c" stroke-width="1"/>`;
+    s+=`<text x="${L-8}" y="${y}" fill="#93a3bf" font-size="11" text-anchor="end" dominant-baseline="central" font-family="ui-monospace,monospace">${val}</text>`;
+  }
+  s+=`<line x1="${px(from)}" y1="${py(from)}" x2="${px(to)}" y2="${py(to)}" stroke="#e8b44a" stroke-width="1" stroke-dasharray="5 5" opacity=".35"/>`;
+  for(const r of rows){
+    if(r.dl){ s+=`<rect x="${(px(r.n)-2).toFixed(1)}" y="${(H-B-6)}" width="4" height="6" fill="#57c48f"/>`; continue; }
+    if(r.sv===null){ s+=`<rect x="${(px(r.n)-2).toFixed(1)}" y="${(H-B-6)}" width="4" height="6" fill="#e8b44a"/>`; continue; }
+    s+=`<circle cx="${px(r.n).toFixed(1)}" cy="${py(r.sv).toFixed(1)}" r="2.6" fill="#57c48f"/>`;
+  }
+  s+=`<text x="${L}" y="${H-8}" fill="#93a3bf" font-size="11" font-family="ui-monospace,monospace">n = ${from}</text>`;
+  s+=`<text x="${W-Rr}" y="${H-8}" fill="#93a3bf" font-size="11" text-anchor="end" font-family="ui-monospace,monospace">n = ${to}</text>`;
+  s+=`<text x="${L}" y="${T-2}" fill="#93a3bf" font-size="11" font-family="ui-monospace,monospace">縱軸：生還座位</text>`;
+  $("#chartA").innerHTML=s;
+}
+
+/* ── 掃描 B ── */
+$("#btn-scanB").onclick=()=>{
+  const n=clampInt($("#sb-n").value,2,200,20), kmax=clampInt($("#sb-kmax").value,2,20,10);
+  const mode=$("#sb-mode").value, first=+$("#sb-first").value, rule=$("#sb-rule").value;
+  const [sb1,sb2]=seatsFor(rule,n);
+  $("#sb-n").value=n; $("#sb-kmax").value=kmax;
+  let h=`<table class="mx"><tr><th>K₁＼K₂</th>`;
+  for(let b=1;b<=kmax;b++) h+=`<th>${b}</th>`;
+  h+=`</tr>`;
+  for(let a=1;a<=kmax;a++){
+    h+=`<tr><th>${a}</th>`;
+    for(let b=1;b<=kmax;b++){
+      const r=solve({n,k1:a,k2:b,s1:sb1,s2:sb2,en1:true,en2:true,mode,first});
+      if(r.deadlock){ h+=`<td style="background:#1c4436;color:#9fe8c4">僵${r.survivors.length}</td>`; continue; }
+      const sv=r.survivors.length? r.survivors[0]+1 : null;
+      const bg = sv===null? "#3a2b12" : heat((sv-1)/Math.max(1,n-1));
+      h+=`<td style="background:${bg};color:#fff">${sv===null?'—':sv}</td>`;
+    }
+    h+=`</tr>`;
+  }
+  h+=`</table>`;
+  $("#mxB").innerHTML=h;
+};
+
+/* 啟動 */
+reset();
+$("#btn-scanA").click();
+$("#btn-scanB").click();
+</script>
+</body>
+</html>
