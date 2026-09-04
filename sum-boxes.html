@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>框框數字遊戲</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #f5f5f3; min-height: 100vh; display: flex; justify-content: center; padding: 2rem 1rem; }
+.game-wrap { width: 100%; max-width: 700px; }
+
+/* 設定列 */
+.settings-bar { display: flex; gap: 20px; align-items: center; background: #fff; border: 1px solid #ddd; border-radius: 12px; padding: 12px 16px; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.setting-group { display: flex; align-items: center; gap: 8px; }
+.setting-label { font-size: 13px; color: #888; }
+.seg-btns { display: flex; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; }
+.seg-btn { padding: 5px 11px; background: transparent; border: none; font-size: 13px; color: #666; cursor: pointer; border-right: 1px solid #ddd; }
+.seg-btn:last-child { border-right: none; }
+.seg-btn.active { background: #7F77DD; color: #fff; font-weight: 500; }
+.settings-hint { font-size: 12px; color: #aaa; margin-left: auto; }
+
+/* Header */
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+.turn-badge { display: flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 12px; border: 1px solid #ddd; background: #fff; font-size: 14px; color: #666; }
+.turn-badge .dot { width: 8px; height: 8px; border-radius: 50%; background: #7F77DD; flex-shrink: 0; }
+.turn-badge.p2 .dot { background: #1D9E75; }
+.turn-badge .player-name { font-weight: 500; color: #111; }
+.next-num { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.next-num .label { font-size: 12px; color: #999; }
+.next-num .num { font-size: 32px; font-weight: 500; color: #111; line-height: 1; }
+.reset-btn { padding: 6px 14px; border: 1px solid #ddd; border-radius: 8px; background: #fff; color: #666; font-size: 13px; cursor: pointer; }
+.reset-btn:hover { background: #f0f0ee; }
+
+/* 框框 */
+.boxes-container { margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 12px; }
+.boxes-row { display: grid; gap: 12px; }
+.box-card { background: #fff; border: 1px solid #ddd; border-radius: 12px; padding: 14px; min-height: 180px; display: flex; flex-direction: column; gap: 8px; transition: border-color 0.15s; }
+.box-card.clickable { cursor: pointer; }
+.box-card.clickable.p1:hover { border: 2px solid #7F77DD; }
+.box-card.clickable.p2:hover { border: 2px solid #1D9E75; }
+.box-label { font-size: 12px; color: #aaa; letter-spacing: 0.05em; font-weight: 500; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; flex: 1; align-content: flex-start; }
+.chip { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 7px; font-size: 13px; font-weight: 500; }
+.chip.p1 { background: #EEEDFE; color: #3C3489; }
+.chip.p2 { background: #E1F5EE; color: #085041; }
+.chip.highlight { outline: 2px solid #E24B4A; outline-offset: 2px; }
+.place-btn { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 8px; background: transparent; font-size: 13px; cursor: pointer; transition: background 0.12s; display: flex; align-items: center; justify-content: center; gap: 5px; }
+.place-btn.p1btn { border-color: #AFA9EC; color: #3C3489; }
+.place-btn.p1btn:hover { background: #EEEDFE; }
+.place-btn.p2btn { border-color: #5DCAA5; color: #085041; }
+.place-btn.p2btn:hover { background: #E1F5EE; }
+.place-btn.danger { border-color: #E24B4A; color: #A32D2D; }
+.place-btn.danger:hover { background: #FCEBEB; }
+.place-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.warning-tag { font-size: 11px; color: #A32D2D; background: #FCEBEB; padding: 2px 8px; border-radius: 999px; display: inline-flex; align-items: center; gap: 4px; }
+
+/* Game over */
+.game-over-banner { display: none; border-radius: 12px; padding: 16px 20px; margin-bottom: 1.5rem; text-align: center; background: #FCEBEB; border: 1px solid #F09595; }
+.game-over-banner .go-title { font-size: 18px; font-weight: 500; margin-bottom: 4px; color: #791F1F; }
+.game-over-banner .go-sub { font-size: 13px; color: #A32D2D; }
+
+/* Status */
+.status-bar { border-top: 1px solid #eee; padding-top: 1rem; display: flex; gap: 12px; align-items: flex-start; margin-bottom: 1rem; }
+.history-section { flex: 1; }
+.history-label { font-size: 12px; color: #aaa; margin-bottom: 6px; }
+.history-list { display: flex; flex-wrap: wrap; gap: 4px; }
+.history-item { font-size: 12px; color: #666; padding: 2px 8px; border-radius: 999px; border: 1px solid #eee; }
+.history-item.terminal { background: #FCEBEB; color: #A32D2D; border-color: #F09595; }
+.win-condition-box { background: #f5f5f3; border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #666; border-left: 3px solid #AFA9EC; max-width: 200px; }
+.win-condition-box .win-label { font-size: 11px; color: #aaa; margin-bottom: 3px; }
+
+/* Research */
+.research-panel { border-top: 1px solid #eee; padding-top: 1rem; }
+.research-toggle { background: none; border: none; color: #888; font-size: 13px; cursor: pointer; padding: 0; }
+.research-toggle:hover { color: #333; }
+.research-content { margin-top: 10px; font-size: 13px; color: #666; background: #f5f5f3; border-radius: 8px; padding: 12px 14px; }
+.research-content table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.research-content td, .research-content th { padding: 5px 8px; border: 1px solid #e5e5e5; font-size: 12px; text-align: center; }
+.research-content th { color: #aaa; font-weight: 400; }
+.danger-pair { color: #A32D2D; font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="game-wrap">
+
+  <!-- 設定列 -->
+  <div class="settings-bar">
+    <div class="setting-group">
+      <span class="setting-label">起始數字</span>
+      <div class="seg-btns" id="startNumBtns"></div>
+    </div>
+    <div class="setting-group">
+      <span class="setting-label">框框數量</span>
+      <div class="seg-btns" id="boxCountBtns"></div>
+    </div>
+    <span class="settings-hint">變更設定會立即重開一局</span>
+  </div>
+
+  <div class="game-over-banner" id="gameOverBanner">
+    <div class="go-title" id="goTitle"></div>
+    <div class="go-sub" id="goSub"></div>
+  </div>
+
+  <div class="header">
+    <div class="turn-badge" id="turnBadge">
+      <span class="dot"></span>
+      <span>輪到</span>
+      <span class="player-name" id="playerName">先手</span>
+      <span>放數字</span>
+    </div>
+    <div class="next-num">
+      <span class="label">下一個數字</span>
+      <span class="num" id="nextNum">1</span>
+    </div>
+    <button class="reset-btn" onclick="resetGame()">↺ 重設</button>
+  </div>
+
+  <div class="boxes-container" id="boxesContainer"></div>
+
+  <div class="status-bar">
+    <div class="history-section">
+      <div class="history-label">放置紀錄</div>
+      <div class="history-list" id="historyList"></div>
+    </div>
+    <div class="win-condition-box">
+      <div class="win-label">勝負條件</div>
+      放入 N 後，若框框內有兩數相加 = N，觸發者輸
+    </div>
+  </div>
+
+  <div class="research-panel">
+    <button class="research-toggle" onclick="toggleResearch()">
+      <span id="researchToggleText">▸ 研究模式</span>
+    </button>
+    <div class="research-content" id="researchContent" style="display:none;">
+      <div style="margin-bottom:8px;">危險數字分析</div>
+      <table>
+        <tr><th>框框</th><th>目前數字</th><th>最近的危險數</th><th>危險配對</th></tr>
+        <tbody id="researchTable"></tbody>
+      </table>
+      <div style="margin-top:12px;" id="moveHistory"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const BOX_NAMES = ['A','B','C','D','E'];
+// 框框排列：幾個框框 → 每排幾欄
+const LAYOUTS = { 2:[2], 3:[1,2], 4:[2,2], 5:[2,3] };
+
+let startNum = 1, boxCount = 2;
+let currentNum = 1, currentPlayer = 0;
+let boxes = [], history = [];
+let researchOpen = false, gameOver = false;
+let highlightPairs = [];
+
+// 建立設定按鈕
+function buildSettings() {
+  const snEl = document.getElementById('startNumBtns');
+  snEl.innerHTML = '';
+  for (let i=1; i<=9; i++) {
+    const b = document.createElement('button');
+    b.className = 'seg-btn' + (i===startNum?' active':'');
+    b.textContent = i;
+    b.onclick = () => { startNum = i; buildSettings(); resetGame(); };
+    snEl.appendChild(b);
+  }
+  const bcEl = document.getElementById('boxCountBtns');
+  bcEl.innerHTML = '';
+  for (let i=2; i<=5; i++) {
+    const b = document.createElement('button');
+    b.className = 'seg-btn' + (i===boxCount?' active':'');
+    b.textContent = i;
+    b.onclick = () => { boxCount = i; buildSettings(); resetGame(); };
+    bcEl.appendChild(b);
+  }
+}
+
+// 動態建立框框 DOM
+function buildBoxes() {
+  const container = document.getElementById('boxesContainer');
+  container.innerHTML = '';
+  const layout = LAYOUTS[boxCount];
+  let idx = 0;
+  layout.forEach(cols => {
+    const row = document.createElement('div');
+    row.className = 'boxes-row';
+    row.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+    for (let c=0; c<cols && idx<boxCount; c++, idx++) {
+      const b = idx;
+      const card = document.createElement('div');
+      card.className = 'box-card';
+      card.id = 'box'+b;
+      card.onclick = () => placeNumber(b);
+      card.innerHTML = `
+        <div class="box-label">框框 ${BOX_NAMES[b]}</div>
+        <div class="chips" id="chips${b}"></div>
+        <div id="warn${b}" style="display:none;" class="warning-tag">⚠ 放了就輸！</div>
+        <button class="place-btn p1btn" id="btn${b}">+ 放 <span id="btnNum${b}">${currentNum}</span> 到這裡</button>
+      `;
+      row.appendChild(card);
+    }
+    container.appendChild(row);
+  });
+}
+
+function checkSum(nums, n) {
+  for (let i=0; i<nums.length; i++)
+    for (let j=i+1; j<nums.length; j++)
+      if (nums[i]+nums[j]===n) return [nums[i], nums[j]];
+  return null;
+}
+
+function wouldTrigger(b, n) { return checkSum(boxes[b].map(x=>x.num), n); }
+
+function placeNumber(b) {
+  if (gameOver) return;
+  const pair = wouldTrigger(b, currentNum);
+  boxes[b].push({num: currentNum, player: currentPlayer});
+  history.push({num: currentNum, box: b, player: currentPlayer, triggered: !!pair, pair});
+  if (pair) {
+    highlightPairs[b] = pair;
+    gameOver = true;
+    document.getElementById('gameOverBanner').style.display = 'block';
+    document.getElementById('goTitle').textContent = `${currentPlayer===0?'先手':'後手'} 觸發加總，輸了！`;
+    document.getElementById('goSub').textContent = `框框 ${BOX_NAMES[b]} 中 ${pair[0]} + ${pair[1]} = ${currentNum}`;
+  } else {
+    currentNum++; currentPlayer = 1-currentPlayer; highlightPairs = Array(boxCount).fill(null);
+  }
+  render();
+}
+
+function render() {
+  document.getElementById('nextNum').textContent = currentNum;
+  document.getElementById('playerName').textContent = currentPlayer===0?'先手':'後手';
+  document.getElementById('turnBadge').className = 'turn-badge' + (currentPlayer===1?' p2':'');
+
+  for (let b=0; b<boxCount; b++) {
+    const chipsEl = document.getElementById('chips'+b);
+    if (!chipsEl) continue;
+    chipsEl.innerHTML = '';
+    boxes[b].forEach(({num, player}) => {
+      const c = document.createElement('span');
+      const hl = highlightPairs[b] && highlightPairs[b].includes(num);
+      c.className = 'chip '+(player===0?'p1':'p2')+(hl?' highlight':'');
+      c.textContent = num;
+      chipsEl.appendChild(c);
+    });
+    document.getElementById('btnNum'+b).textContent = currentNum;
+    const trigger = !gameOver && wouldTrigger(b, currentNum);
+    document.getElementById('warn'+b).style.display = trigger?'inline-flex':'none';
+    const btn = document.getElementById('btn'+b);
+    const box = document.getElementById('box'+b);
+    if (gameOver) {
+      btn.disabled = true; box.className = 'box-card';
+    } else if (trigger) {
+      btn.className = 'place-btn danger';
+      box.className = 'box-card clickable '+(currentPlayer===0?'p1':'p2');
+    } else {
+      btn.className = 'place-btn '+(currentPlayer===0?'p1btn':'p2btn');
+      box.className = 'box-card clickable '+(currentPlayer===0?'p1':'p2');
+    }
+  }
+
+  const histEl = document.getElementById('historyList');
+  histEl.innerHTML = '';
+  history.forEach(h => {
+    const item = document.createElement('span');
+    item.className = 'history-item'+(h.triggered?' terminal':'');
+    item.textContent = `${h.player===0?'先':'後'}放 ${h.num} → ${BOX_NAMES[h.box]}${h.triggered?' 💥':''}`;
+    histEl.appendChild(item);
+  });
+
+  if (researchOpen) updateResearch();
+}
+
+function resetGame() {
+  currentNum = startNum; currentPlayer = 0;
+  boxes = Array.from({length: boxCount}, ()=>[]);
+  highlightPairs = Array(boxCount).fill(null);
+  history = []; gameOver = false;
+  document.getElementById('gameOverBanner').style.display = 'none';
+  buildBoxes();
+  render();
+}
+
+function toggleResearch() {
+  researchOpen = !researchOpen;
+  document.getElementById('researchContent').style.display = researchOpen?'block':'none';
+  document.getElementById('researchToggleText').textContent = researchOpen?'▾ 研究模式':'▸ 研究模式';
+  if (researchOpen) updateResearch();
+}
+
+function updateResearch() {
+  const tbody = document.getElementById('researchTable');
+  tbody.innerHTML = '';
+  for (let i=0; i<boxCount; i++) {
+    const nums = boxes[i].map(x=>x.num);
+    let dangers = [];
+    for (let n=currentNum; n<=currentNum+30; n++) {
+      const p=checkSum(nums,n); if(p){dangers.push({n,p}); if(dangers.length>=3) break;}
+    }
+    const pairs = dangers.map(d=>`<span class="danger-pair">${d.n}（${d.p[0]}+${d.p[1]}）</span>`).join('、')||'—';
+    const tr = document.createElement('tr');
+    tr.innerHTML=`<td>框框 ${BOX_NAMES[i]}</td><td>${nums.join(', ')||'—'}</td><td>${dangers.length?dangers[0].n:'—'}</td><td>${pairs}</td>`;
+    tbody.appendChild(tr);
+  }
+  document.getElementById('moveHistory').innerHTML =
+    '<div style="font-size:12px;color:#aaa;margin-bottom:4px;">步驟紀錄</div>' +
+    (history.length
+      ? history.map((h,i)=>`<span style="font-size:12px;color:${h.triggered?'#A32D2D':'#666'};">第${i+1}步：${h.player===0?'先手':'後手'} 放 ${h.num} → 框框${BOX_NAMES[h.box]}${h.triggered?' 💥觸發！':''}</span>`).join('<br>')
+      : '<span style="font-size:12px;color:#aaa;">尚未落子</span>');
+}
+
+// 初始化
+buildSettings();
+resetGame();
+</script>
+</body>
+</html>
