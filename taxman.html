@@ -21,6 +21,9 @@ body{margin:0;background:var(--paper);color:var(--ink);
   font-family:"Noto Sans TC","Space Grotesk",system-ui,sans-serif;padding:0 0 92px}
 
 header{padding:16px 16px 10px;max-width:1140px;margin:0 auto}
+.home-link{display:inline-flex;align-items:center;gap:4px;font-size:13px;
+  color:var(--ink-soft,#8a7f6e);text-decoration:none;margin-bottom:6px}
+.home-link:hover{text-decoration:underline;color:var(--ink)}
 h1{font-family:"Space Grotesk",sans-serif;font-size:19px;font-weight:700;margin:0;letter-spacing:-.01em}
 h1 span{font-weight:400;color:var(--ink-soft);font-size:13px;margin-left:8px}
 .controls{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:11px}
@@ -101,6 +104,7 @@ button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
 <body>
 
 <header>
+  <a class="home-link" href="index.html">← 回首頁</a>
   <h1>稅收遊戲<span>Taxman</span></h1>
   <div class="controls" id="ctlN"></div>
   <div class="controls" id="ctlB"></div>

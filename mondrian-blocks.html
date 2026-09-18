@@ -30,6 +30,9 @@
   .app{width:100%; max-width:600px;}
 
   header{margin:0 2px 12px;}
+  .home-link{display:inline-flex;align-items:center;gap:4px;font-size:13px;
+    color:#8a8578;text-decoration:none;margin-bottom:6px}
+  .home-link:hover{text-decoration:underline;color:var(--ink)}
   h1{
     font-size:clamp(24px,7vw,40px);
     letter-spacing:.14em; text-transform:uppercase;
@@ -180,6 +183,7 @@
 <body>
   <div class="app">
     <header>
+      <a class="home-link" href="index.html">← 回首頁</a>
       <h1>方塊鋪滿 <span class="n">8×8</span><span class="now" id="nowlevel"></span></h1>
       <p class="sub">雙擊或選取後按 R 也可旋轉。</p>
     </header>

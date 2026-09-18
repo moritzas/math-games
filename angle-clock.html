@@ -33,6 +33,9 @@
   }
   .wrap{max-width:1000px;margin:0 auto;}
   header{margin:0 auto 16px;}
+  .home-link{display:inline-flex;align-items:center;gap:4px;font-size:13px;
+    color:var(--muted,#64748b);text-decoration:none;margin-bottom:8px}
+  .home-link:hover{text-decoration:underline;color:var(--ink)}
   h1{font-family:"Space Grotesk","Noto Sans TC",sans-serif;font-size:clamp(21px,4.6vw,30px);
      letter-spacing:.5px;margin:0;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;}
   h1 .en{font-size:.6em;color:var(--muted);font-weight:500;letter-spacing:2px;text-transform:uppercase;}
@@ -145,6 +148,7 @@
 <body>
 <div class="wrap">
   <header>
+    <a class="home-link" href="index.html">← 回首頁</a>
     <h1>角度時鐘 <span class="en">Angle Clock</span></h1>
     <div class="sub">探索時針與分針的角度關係:重合、垂直、成一直線。</div>
   </header>

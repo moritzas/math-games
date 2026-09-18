@@ -58,6 +58,17 @@
     text-transform: uppercase;
   }
 
+  .home-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    margin-bottom: 10px;
+  }
+  .home-link:hover { color: var(--text); text-decoration: underline; }
+
   /* ── SETUP PANEL ── */
   #setup {
     background: var(--surface);
@@ -349,6 +360,7 @@
 </head>
 <body>
 
+<a class="home-link" href="index.html">← 回首頁</a>
 <h1>點格棋</h1>
 <p class="subtitle">Dots &amp; Boxes</p>
 
