@@ -50,9 +50,14 @@ body{background:var(--paper);color:var(--ink);
   border:1px solid var(--panel-line);border-radius:10px;box-shadow:0 4px 16px rgba(30,37,54,.10)}
 #topbar{top:10px;left:10px;padding:9px 11px;display:flex;flex-direction:column;gap:7px;
   max-width:min(440px,calc(100vw - 20px));transition:padding .14s ease}
-/* 收合標籤靠右,避開正下方置中的 ↑ 鈕 */
-#topTab{align-self:flex-end;font-size:11.5px;padding:3px 10px;color:var(--ink-soft);
+/* 首頁連結靠左、收合標籤靠右,避開正下方置中的 ↑ 鈕 */
+#foot{display:flex;align-items:center;justify-content:space-between;gap:10px}
+#topTab{font-size:11.5px;padding:3px 10px;color:var(--ink-soft);
   border-radius:6px;letter-spacing:.02em}
+#homeLink{font-size:11.5px;padding:3px 10px;color:var(--ink-soft);background:#fff;
+  border:1px solid var(--panel-line);border-radius:6px;text-decoration:none;
+  letter-spacing:.02em;transition:background .12s}
+#homeLink:hover{background:#f0eee7}
 #topbar.collapsed{padding:5px 6px;gap:0}
 #topbar.collapsed .row{display:none}
 .row{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
@@ -88,10 +93,6 @@ button:disabled{opacity:.4;cursor:not-allowed}
 #tools{position:fixed;z-index:100;left:10px;bottom:var(--barh);
   display:grid;grid-template-columns:auto auto;gap:5px}
 #tools button{font-size:11.5px;padding:5px 8px}
-#tools a{font-family:inherit;font-size:11.5px;color:var(--ink);background:#fff;
-  border:1px solid var(--panel-line);border-radius:7px;padding:5px 8px;text-decoration:none;
-  display:flex;align-items:center;justify-content:center;transition:background .12s}
-#tools a:hover{background:#f0eee7}
 #zoom{position:fixed;z-index:100;right:10px;bottom:var(--barh);
   display:flex;flex-direction:column;gap:4px}
 #zoom button{width:34px;padding:4px 0;font-family:"Space Grotesk",sans-serif;font-weight:700}
@@ -138,7 +139,10 @@ button:disabled{opacity:.4;cursor:not-allowed}
   </div>
   <div class="row" id="optRow"></div>
   <div class="row" id="optRow2"></div>
-  <button id="topTab" title="收合／展開選單">收起 ▲</button>
+  <div id="foot">
+    <a id="homeLink" href="index.html">← 首頁</a>
+    <button id="topTab" title="收合／展開選單">收起 ▲</button>
+  </div>
 </div>
 
 <button class="nav" id="navU" title="往上看">↑</button>
@@ -151,7 +155,6 @@ button:disabled{opacity:.4;cursor:not-allowed}
   <button id="btnFlip">翻面 F</button>
   <button id="btnReturn">收回</button>
   <button id="btnReset">重來</button>
-  <a href="index.html">← 首頁</a>
 </div>
 
 <div id="zoom">

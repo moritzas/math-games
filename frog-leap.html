@@ -21,8 +21,9 @@
     background:radial-gradient(120% 80% at 50% -10%, #F3F5FA 0%, var(--bg) 55%) fixed;
     color:var(--ink);line-height:1.55;padding:24px 16px 56px;-webkit-font-smoothing:antialiased}
   .wrap{max-width:920px;margin:0 auto}
-  .home-link{display:inline-flex;align-items:center;gap:4px;font-size:13px;
-    color:var(--muted);text-decoration:none;margin-bottom:10px}
+  .titlebar{display:flex;align-items:baseline;gap:10px}
+  .home-link{margin-left:auto;flex:0 0 auto;font-size:12px;white-space:nowrap;
+    color:var(--muted);text-decoration:none}
   .home-link:hover{text-decoration:underline;color:var(--ink)}
   .eyebrow{font-family:"Space Grotesk",sans-serif;letter-spacing:.28em;text-transform:uppercase;
     font-size:12px;color:var(--accent);font-weight:600;margin:0 0 6px}
@@ -139,8 +140,10 @@
 </head>
 <body>
 <div class="wrap">
-  <a class="home-link" href="index.html">← 回首頁</a>
-  <p class="eyebrow">數學遊戲 · 換位</p>
+  <div class="titlebar">
+    <p class="eyebrow">數學遊戲 · 換位</p>
+    <a class="home-link" href="index.html">← 首頁</a>
+  </div>
   <h1>換位跳棋</h1>
   <p class="lede">同一個蛙跳問題的兩種版本：<b>一維</b>是一條直線兩端對換;<b>平面</b>是兩個 3×3 棋盤相接、擠過中央瓶頸對換。</p>
 

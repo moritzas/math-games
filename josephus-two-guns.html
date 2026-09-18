@@ -35,8 +35,9 @@ body{
 .mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
 
 header{padding:22px 20px 10px;max-width:1400px;margin:0 auto}
-.home-link{display:inline-flex;align-items:center;gap:4px;font-size:13px;
-  color:var(--muted,#8a7f6e);text-decoration:none;margin-bottom:8px}
+.titlebar{display:flex;align-items:flex-start;gap:10px}
+.home-link{margin-left:auto;flex:0 0 auto;margin-top:6px;font-size:13px;white-space:nowrap;
+  color:var(--muted);text-decoration:none}
 .home-link:hover{text-decoration:underline}
 h1{
   margin:0;font-size:clamp(20px,3.4vw,32px);font-weight:800;letter-spacing:.04em;
@@ -149,8 +150,10 @@ kbd{background:var(--ink2);border:1px solid var(--line);border-bottom-width:2px;
 <body>
 
 <header>
-  <a class="home-link" href="index.html">← 回首頁</a>
-  <h1>雙槍約瑟夫問題<span class="en">JOSEPHUS · TWO GUNS</span></h1>
+  <div class="titlebar">
+    <h1>雙槍約瑟夫問題<span class="en">JOSEPHUS · TWO GUNS</span></h1>
+    <a class="home-link" href="index.html">← 首頁</a>
+  </div>
 </header>
 
 <nav class="tabs" role="tablist">

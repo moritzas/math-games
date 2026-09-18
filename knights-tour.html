@@ -28,9 +28,9 @@
     display:flex;flex-direction:column;align-items:center;
     padding:14px 10px 40px;
   }
-  header{text-align:center;margin-bottom:10px}
-  .home-link{display:inline-flex;align-items:center;gap:4px;font-size:13px;
-    color:var(--muted,#8a7f6e);text-decoration:none;margin-bottom:6px}
+  header{text-align:center;margin-bottom:10px;position:relative}
+  .home-link{position:absolute;left:0;top:4px;font-size:13px;white-space:nowrap;
+    color:var(--muted,#8a7f6e);text-decoration:none}
   .home-link:hover{text-decoration:underline}
   h1{
     font-family:"Noto Serif TC","PMingLiU",serif;
@@ -172,7 +172,7 @@
 </head>
 <body>
 <header>
-  <a class="home-link" href="index.html">← 回首頁</a>
+  <a class="home-link" href="index.html">← 首頁</a>
   <h1>馬步收棋</h1>
   <div class="subtitle">以「馬」走「日」的步法,一路把棋子全部收完(同一位置只能走 1 次)</div>
 </header>
