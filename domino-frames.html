@@ -18,6 +18,10 @@
 body{margin:0;background:var(--paper);color:var(--ink);touch-action:manipulation;
   font-family:"Noto Sans TC","Space Grotesk",system-ui,sans-serif;padding:0 0 24px}
 header{padding:14px 16px 4px;max-width:1180px;margin:0 auto}
+.titlebar{display:flex;align-items:baseline;gap:10px}
+.home-link{margin-left:auto;flex:0 0 auto;font-size:13px;white-space:nowrap;
+  color:var(--ink-soft);text-decoration:none}
+.home-link:hover{text-decoration:underline;color:var(--ink)}
 h1{font-family:"Space Grotesk",sans-serif;font-size:18px;font-weight:700;margin:0}
 h1 span{font-weight:400;color:var(--ink-soft);font-size:13px;margin-left:8px}
 .controls{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:10px}
@@ -92,7 +96,10 @@ button:disabled{opacity:.35;cursor:not-allowed}
 <body>
 
 <header>
-  <h1 id="title">骨牌方框</h1>
+  <div class="titlebar">
+    <h1 id="title">骨牌方框</h1>
+    <a class="home-link" href="index.html">← 首頁</a>
+  </div>
   <div class="controls" id="modeRow">
     <span class="eyebrow">玩法</span>
     <button class="pill" data-m="eq">等和方框</button>
