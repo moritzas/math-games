@@ -52,6 +52,7 @@ button,select{font:inherit;font-size:.9rem;color:var(--ink);background:var(--pan
 button:hover,select:hover{border-color:var(--accent)}
 button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button:disabled{opacity:.4;cursor:not-allowed;border-color:var(--line)}
 button.warn{border-color:var(--danger);color:var(--danger)}
 button kbd{font-family:var(--font-body);font-size:.72rem;color:var(--muted);margin-left:4px}
 .hint-line{font-size:.78rem;color:var(--muted);text-align:center}
@@ -78,7 +79,7 @@ button kbd{font-family:var(--font-body);font-size:.72rem;color:var(--muted);marg
   <header class="top">
     <div class="title">
       <h1>Y 形五連塊拼圖</h1>
-      <p>12 片五連塊加 1 顆單格，填滿 61 格的六角木盤</p>
+      <p>12 片五連塊加 1 顆單格，填滿 61 格的六角木盤。原版規則不可翻面</p>
     </div>
     <div class="stats" aria-live="polite">
       <span>已放 <b id="sPlaced">0</b> / 12</span>
@@ -120,6 +121,13 @@ button kbd{font-family:var(--font-body);font-size:.72rem;color:var(--muted);marg
     </div>
     <span class="sep"></span>
     <div class="grp">
+      <select id="rule" aria-label="規則">
+        <option value="noflip">原版：不可翻面</option>
+        <option value="flip">簡單：可以翻面</option>
+      </select>
+    </div>
+    <span class="sep"></span>
+    <div class="grp">
       <label for="mode" class="hint-line" style="display:inline">單格</label>
       <select id="mode" aria-label="單格的位置">
         <option value="center">固定在中心</option>
@@ -134,7 +142,7 @@ button kbd{font-family:var(--font-body);font-size:.72rem;color:var(--muted);marg
       <button id="bReset" type="button">重來</button>
     </div>
   </div>
-  <div class="hint-line">拖曳木塊放進木盤 · 點一下轉 120° · 右鍵或「翻面」做鏡像 · Y 形單元只能轉 120°，所以翻面常常是關鍵</div>
+  <div class="hint-line" id="helpLine"></div>
 </div>
 <script>
 // ===== Y-pentahex puzzle core (geometry + solver) =====
@@ -172,26 +180,30 @@ const cellIndex = (q,r) => CIDX.has(q+','+r) ? CIDX.get(q+','+r) : -1;
 // all placements: per piece list of {k, q, r, cells:[idx], lo, hi}
 function buildPlacements(){
   return PIECES.map((p)=>{
-    const seen = new Set(), out = [];
+    // one placement per covered cell set; prefer an unflipped (even k) way of reaching it
+    const seen = new Map();
     for (let k=0;k<6;k++){
       const o = orient(p,k);
       for (const [cq,cr] of CELLS){
         const idx = o.map(([a,b])=>cellIndex(a+cq,b+cr));
         if (idx.some(i=>i<0)) continue;
         const key = idx.slice().sort((a,b)=>a-b).join(',');
-        if (seen.has(key)) continue; seen.add(key);
+        const prev = seen.get(key);
+        if (prev && !((prev.k&1) && !(k&1))) continue;
         let lo=0, hi=0; for (const i of idx){ if (i<31) lo|=1<<i; else hi|=1<<(i-31); }
-        out.push({k, q:cq, r:cr, cells:idx, min:Math.min(...idx), lo, hi});
+        seen.set(key, {k, q:cq, r:cr, cells:idx, min:Math.min(...idx), lo, hi});
       }
     }
-    return out;
+    return [...seen.values()];
   });
 }
 const PLACE = buildPlacements();
 const BYMIN = PLACE.map(pl=>{ const a=CELLS.map(()=>[]); pl.forEach(p=>a[p.min].push(p)); return a; });
+const BYMIN_NF = PLACE.map(pl=>{ const a=CELLS.map(()=>[]); pl.forEach(p=>{ if(!(p.k&1)) a[p.min].push(p); }); return a; });
 
 // fixed: array (per piece) of placement or null. Returns {count, first} ; limit stops early
-function solve(fixed, limit=1, budget=5e7, order=null){
+function solve(fixed, limit=1, budget=5e7, order=null, noflip=false){
+  const BY = noflip ? BYMIN_NF : BYMIN;
   const ORD = order || PIECES.map((_,i)=>i);
   let lo=0, hi=0, used=0; const sol = PIECES.map(()=>null);
   for (let i=0;i<PIECES.length;i++){ const f=fixed[i]; if(!f) continue;
@@ -209,7 +221,7 @@ function solve(fixed, limit=1, budget=5e7, order=null){
     if (e < 0 || used===ALL){ if (e<0){ count++; if(!first) first=sol.slice(); } return count>=limit; }
     for (let oi=0;oi<ORD.length;oi++){ const i=ORD[oi];
       if (used>>i & 1) continue;
-      const list = BYMIN[i][e];
+      const list = BY[i][e];
       for (let j=0;j<list.length;j++){ const p=list[j];
         if ((lo&p.lo)||(hi&p.hi)) continue;
         lo|=p.lo; hi|=p.hi; used|=1<<i; sol[i]=p;
@@ -302,15 +314,18 @@ ring.forEach(([x,y])=>TILE.forEach(([a,b])=>{ boardBox.minX=Math.min(boardBox.mi
   let c=polyD(TILE,0,0); TIPS.forEach(t=>c+=`M0 0L${f2(t[0])} ${f2(t[1])}`);
   el('path',{d:c,fill:'none',stroke:'rgba(96,58,22,.7)','stroke-width':.9},boardLayer);
   el('circle',{cx:0,cy:0,r:2.4,fill:'#4a3423'},boardLayer);
+  [[1,-4],[-1,-3],[2,-3],[2,-2],[3,0],[-1,1],[-3,2],[0,3],[-3,4]].forEach(([q,r])=>{ const [x,y]=xy(q,r); el('circle',{cx:x,cy:y,r:2.6,fill:'#5a3e28'},boardLayer); });
   woodGroup(ring,WOOD.maple,boardLayer);
 })();
 
 // ---------- state ----------
+const NF_COUNT={'1,-4':1,'-4,3':1,'3,1':1,'-1,-3':1,'-3,4':1,'4,-1':1,'0,-3':2,'-3,3':2,'3,0':2,'1,-3':1,'-3,2':1,'2,1':1,'2,-3':2,'-3,1':2,'1,2':2,'3,-3':1,'-3,0':1,'0,3':1,'2,-2':1,'-2,0':1,'0,2':1,'1,-1':1,'-1,0':1,'0,1':1};
+const NF_POS=Object.keys(NF_COUNT).map(k=>k.split(',').map(Number));
 const POS_COUNT={"0,-4":514,"1,-4":426,"2,-4":192,"3,-4":104,"4,-4":378,"0,-3":218,"1,-3":190,"2,-3":186,"3,-3":242,"0,-2":122,"1,-2":200,"2,-2":208,"0,-1":208,"1,-1":226,"0,0":312};
 function countAt(q,r){ for(let k=0;k<6;k++){ const [a,b]=orient([[q,r]],k)[0]; const v=POS_COUNT[a+','+b]; if(v) return v; } return 0; }
 const PKEY=PLACE.map(pl=>{ const m=new Map(); pl.forEach(p=>m.set(p.cells.slice().sort((a,b)=>a-b).join(','),p)); return m; });
 let st;
-function freshState(mode,mono){ return {k:Array(N).fill(0),pos:Array(N).fill(null),mode,mono,hints:0,elapsed:0,started:false,done:false,revealed:false}; }
+function freshState(mode,mono,noflip=true){ return {k:Array(N).fill(0),pos:Array(N).fill(null),mode,mono,noflip,hints:0,elapsed:0,started:false,done:false,revealed:false}; }
 const locked=i=>i===0&&st.mode!=='free';
 const oc=i=>orient(PIECES[i],st.k[i]);
 
@@ -398,30 +413,41 @@ function showWin(){
   if(!RM){ const t0=performance.now(); (function wave(now){ const p=(now-t0)/1100; pe.forEach((x,j)=>{ const a=Math.max(0,Math.sin(Math.min(1,Math.max(0,p*2-j*.08))*Math.PI)); x.g.style.filter=a>0.01?`brightness(${1+a*.35})`:''; }); if(p<1.6) requestAnimationFrame(wave); else pe.forEach(x=>x.g.style.filter=''); })(t0); }
 }
 function posLabel(q,r){ return hexDist(q,r)===0?'正中央':`離中心 ${hexDist(q,r)} 格`; }
+function syncRuleUI(){
+  $('rule').value=st.noflip?'noflip':'flip'; $('bFlip').disabled=st.noflip;
+  $('helpLine').textContent=st.noflip?'拖曳木塊放進木盤 · 點一下轉 120° · 原版規則：木塊一律正面朝上，不可翻面':'拖曳木塊放進木盤 · 點一下轉 120° · 右鍵或「翻面」做鏡像';
+}
 function modeToast(){
+  if(st.noflip){
+    if(st.mode==='free') return toast('單格也要自己擺。不翻面時，61 格裡只有 25 格放單格拼得出來。',5600);
+    if(st.mode==='center') return toast('原版規則：不可翻面。單格放中心時，扣掉整盤旋轉，只有唯一一組解。',5200);
+    const n=NF_COUNT[st.mono.join(',')]||0;
+    return toast(`單格放在${posLabel(st.mono[0],st.mono[1])}的位置（有黃銅釘那顆）。這個位置${n===1?'只有唯一一組解':'有 '+n+' 組解'}。`,5200);
+  }
   if(st.mode==='free') return toast('單格也要自己擺。全部 61 格每一格都放得出解。');
   const [q,r]=st.mono, n=countAt(q,r);
   toast(st.mode==='center'?'單格固定在正中央：共有 312 種擺法，扣掉旋轉與翻面後是 52 種。':`單格固定在${posLabel(q,r)}的位置（有黃銅釘那顆），這個位置共有 ${n} 種擺法。`,5200);
 }
 
 // ---------- game control ----------
-function newGame(mode){
+function newGame(mode,noflip){
+  if(noflip===undefined) noflip=st?st.noflip:true;
   let mono=[0,0];
-  if(mode==='random'){ const opts=CELLS.filter(([q,r])=>q||r); mono=opts[Math.floor(Math.random()*opts.length)]; }
-  st=freshState(mode,mono);
+  if(mode==='random'){ const opts=noflip?NF_POS:CELLS.filter(([q,r])=>q||r); mono=opts[Math.floor(Math.random()*opts.length)]; }
+  st=freshState(mode,mono,noflip);
   if(mode!=='free') st.pos[0]={q:mono[0],r:mono[1]};
   $('win').hidden=true; $('mode').value=mode;
-  for(let i=0;i<N;i++){ renderPiece(i); } select(-1); layout(); stats(); save(); modeToast(); clearGhost();
+  for(let i=0;i<N;i++){ renderPiece(i); } select(-1); layout(); stats(); syncRuleUI(); save(); modeToast(); clearGhost();
 }
 function load(obj){
   if(!obj||!Array.isArray(obj.k)||obj.k.length!==N) return false;
-  st=Object.assign(freshState('center',[0,0]),obj); $('mode').value=st.mode;
+  st=Object.assign(freshState('center',[0,0]),obj); if(obj.noflip===undefined) st.noflip=!st.k.some(k=>k&1); $('mode').value=st.mode; syncRuleUI();
   for(let i=0;i<N;i++) renderPiece(i); layout(); stats(); $('win').hidden=!st.done; if(st.done) showWin(); return true;
 }
 function startClock(){ if(!st.started){ st.started=true; lastTick=performance.now(); } }
 
 function rotate(i,pivot){ transformPiece(i,rotK(st.k[i]),pivot,'rot'); }
-function flip(i,pivot){ transformPiece(i,flipK(st.k[i]),pivot,'flip'); }
+function flip(i,pivot){ if(st.noflip){ toast('原版規則不能翻面。想翻面的話，把規則改成「可以翻面」。'); return; } transformPiece(i,flipK(st.k[i]),pivot,'flip'); }
 function transformPiece(i,nk,pivot,kind){
   if(i<0){ toast('先點一下要轉的木塊'); return; }
   if(locked(i)){ toast('這顆單格固定在木盤上'); return; }
@@ -496,7 +522,7 @@ function hint(){
   if(st.done) return;
   toast('想一下…',8000);
   setTimeout(()=>{
-    const res=solve(fixedNow(-1),1,2.5e7,shuffled());
+    const res=solve(fixedNow(-1),1,2.5e7,shuffled(),st.noflip);
     if(res.first){
       let firstEmpty=-1; const occ=occupancy(-1); for(let c=0;c<CELLS.length;c++){ if(!occ.has(CELLS[c].join(','))){ firstEmpty=c; break; } }
       let j=res.first.findIndex((p,idx)=>p&&!st.pos[idx]&&p.cells.includes(firstEmpty));
@@ -505,7 +531,7 @@ function hint(){
       toast('目前的擺法還有解，幫你放了一片。'); after(); return;
     }
     if(res.aborted){ toast('找了很久還沒有結論，先多放幾片再問一次。'); return; }
-    const bad=[]; for(let j=0;j<N;j++){ if(!st.pos[j]||locked(j)) continue; const r=solve(fixedNow(j),1,3e6); if(r.first) bad.push(j); }
+    const bad=[]; for(let j=0;j<N;j++){ if(!st.pos[j]||locked(j)) continue; const r=solve(fixedNow(j),1,3e6,null,st.noflip); if(r.first) bad.push(j); }
     st.hints++; after();
     if(bad.length){ bad.forEach(j=>shake(j)); select(bad[0]); toast(bad.length===1?'目前這樣無解。剛剛晃動的那片放錯了，拿掉它就有解。':`目前這樣無解。晃動的 ${bad.length} 片裡任拿掉一片就有解。`,5200); }
     else toast('目前這樣無解，而且不是只錯一片。試著多拿掉幾片重新排。',5200);
@@ -516,8 +542,8 @@ function revealSolution(){
   const b=$('bSolve');
   if(!solveArm){ b.textContent='確定要看？'; b.classList.add('warn'); solveArm=setTimeout(()=>{ solveArm=0; b.textContent='看解答'; b.classList.remove('warn'); },3000); return; }
   clearTimeout(solveArm); solveArm=0; b.textContent='看解答'; b.classList.remove('warn');
-  let res=solve(fixedNow(-1),1,2.5e7,shuffled());
-  if(!res.first){ for(let j=0;j<N;j++) if(!locked(j)) st.pos[j]=null; res=solve(fixedNow(-1),1,2.5e7,shuffled()); }
+  let res=solve(fixedNow(-1),1,2.5e7,shuffled(),st.noflip);
+  if(!res.first){ for(let j=0;j<N;j++) if(!locked(j)) st.pos[j]=null; res=solve(fixedNow(-1),1,2.5e7,shuffled(),st.noflip); }
   if(!res.first) return toast('找不到解，請按「重來」');
   st.revealed=true; let d=0;
   res.first.forEach((p,j)=>{ if(p&&!st.pos[j]){ setTimeout(()=>placeFrom(j,p,320),RM?0:d); d+=90; } });
@@ -530,8 +556,9 @@ $('bRot').onclick=()=>rotate(selected,null);
 $('bFlip').onclick=()=>flip(selected,null);
 $('bHint').onclick=hint;
 $('bSolve').onclick=revealSolution;
-$('bReset').onclick=()=>{ const m=st.mode, mono=st.mono; newGame(m); if(m==='random'){ st=freshState(m,mono); st.pos[0]={q:mono[0],r:mono[1]}; for(let i=0;i<N;i++) renderPiece(i); layout(); stats(); save(); modeToast(); } };
+$('bReset').onclick=()=>{ const m=st.mode, mono=st.mono; newGame(m); if(m==='random'){ st=freshState(m,mono,st.noflip); st.pos[0]={q:mono[0],r:mono[1]}; for(let i=0;i<N;i++) renderPiece(i); layout(); stats(); save(); modeToast(); } };
 $('mode').onchange=e=>newGame(e.target.value);
+$('rule').onchange=e=>newGame(st.mode,e.target.value==='noflip');
 $('winAgain').onclick=()=>newGame('random');
 $('winClose').onclick=()=>{ $('win').hidden=true; };
 document.addEventListener('keydown',e=>{
