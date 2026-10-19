@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Y 形五連塊拼圖</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+/* Layout: one-screen workbench — slim header, the SVG table (board + piece tray) fills the middle, tool bar at the bottom. */
+:root{
+  --bg:#e7e6e0;          /* paper on the desk */
+  --panel:#f4f3ef;
+  --ink:#2a211b;
+  --muted:#6e645b;
+  --line:#cfc9bf;
+  --accent:#a8781f;      /* brass, like the pin */
+  --accent-soft:rgba(168,120,31,.16);
+  --danger:#b4432f;
+  --font-display:"LXGW WenKai TC","Kaiti TC","STKaiti","BiauKai",serif;
+  --font-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#1b1713;--panel:#25201b;--ink:#efe6da;--muted:#a69786;--line:#3b322a;
+  --accent:#dcaa48;--accent-soft:rgba(220,170,72,.18);--danger:#e0735c;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#1b1713;--panel:#25201b;--ink:#efe6da;--muted:#a69786;--line:#3b322a;
+  --accent:#dcaa48;--accent-soft:rgba(220,170,72,.18);--danger:#e0735c;color-scheme:dark}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);overflow:hidden}
+.app{height:100%;display:flex;flex-direction:column;gap:6px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:10px;box-sizing:border-box;max-width:1180px;margin:0 auto}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.title h1{font-family:var(--font-display);font-weight:700;font-size:1.65rem;line-height:1.1;margin:0;letter-spacing:.02em;text-wrap:balance}
+.title p{margin:3px 0 0;color:var(--muted);font-size:.82rem}
+.stats{display:flex;gap:14px;font-size:.82rem;color:var(--muted);font-variant-numeric:tabular-nums;align-items:baseline}
+.stats b{color:var(--ink);font-weight:500;font-size:.98rem}
+.stage{position:relative;flex:1;min-height:0}
+#table{width:100%;height:100%;display:block;touch-action:none;user-select:none;-webkit-user-select:none}
+.piece{cursor:grab}
+.piece.locked{cursor:default}
+.dragging{cursor:grabbing}
+.toast{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);max-width:min(92%,520px);background:var(--panel);color:var(--ink);
+  border:1px solid var(--line);border-radius:10px;padding:8px 14px;font-size:.88rem;line-height:1.45;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.12);
+  transition:opacity .25s;pointer-events:none}
+.toast.hide{opacity:0}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center}
+.bar .grp{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.sep{width:1px;height:24px;background:var(--line)}
+button,select{font:inherit;font-size:.9rem;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:7px 14px;cursor:pointer;line-height:1.2}
+button:hover,select:hover{border-color:var(--accent)}
+button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.warn{border-color:var(--danger);color:var(--danger)}
+button kbd{font-family:var(--font-body);font-size:.72rem;color:var(--muted);margin-left:4px}
+.hint-line{font-size:.78rem;color:var(--muted);text-align:center}
+.win{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.win .card{pointer-events:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 26px;text-align:center;box-shadow:0 18px 50px rgba(0,0,0,.22);max-width:340px}
+.win h2{font-family:var(--font-display);font-size:1.7rem;margin:0 0 6px}
+.win p{margin:0 0 14px;color:var(--muted);font-size:.9rem;line-height:1.5}
+.win .row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+@media (max-width:560px){
+  .title h1{font-size:1.35rem}
+  .title p{display:none}
+  button,select{padding:7px 11px;font-size:.85rem}
+  button kbd{display:none}
+  .sep{display:none}
+  .hint-line{display:none}
+}
+[hidden]{display:none!important}
+.selpath{display:none}
+.piece.sel .selpath{display:inline}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="title">
+      <h1>Y 形五連塊拼圖</h1>
+      <p>12 片五連塊加 1 顆單格，填滿 61 格的六角木盤</p>
+    </div>
+    <div class="stats" aria-live="polite">
+      <span>已放 <b id="sPlaced">0</b> / 12</span>
+      <span>時間 <b id="sTime">00:00</b></span>
+      <span>提示 <b id="sHints">0</b></span>
+    </div>
+  </header>
+  <main class="stage" id="stage">
+    <svg id="table" xmlns="http://www.w3.org/2000/svg" aria-label="拼圖桌面：中央是六角木盤，旁邊是待放的木塊">
+      <defs>
+        <pattern id="grain" patternUnits="userSpaceOnUse" width="60" height="14" patternTransform="rotate(-8)">
+          <path d="M0 3 Q15 1 30 3 T60 3 M0 8 Q15 10 30 8 T60 8 M0 12 Q20 11 40 12.5 T60 12" fill="none" stroke="#000" stroke-width=".6" opacity=".09"/>
+        </pattern>
+        <radialGradient id="steel" cx="38%" cy="34%" r="70%">
+          <stop offset="0" stop-color="#ffffff"/><stop offset=".35" stop-color="#d8dbe0"/><stop offset=".8" stop-color="#7f858d"/><stop offset="1" stop-color="#4f545a"/>
+        </radialGradient>
+        <filter id="lift" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="4" dy="9" stdDeviation="6" flood-color="#000" flood-opacity=".32"/></filter>
+      </defs>
+      <g id="boardLayer"></g>
+      <g id="ghostLayer"></g>
+      <g id="pieceLayer"></g>
+    </svg>
+    <div class="toast hide" id="toast" role="status"></div>
+    <div class="win" id="win" hidden>
+      <div class="card">
+        <h2 id="winTitle">拼好了</h2>
+        <p id="winText"></p>
+        <div class="row">
+          <button class="primary" id="winAgain" type="button">換個位置再玩</button>
+          <button id="winClose" type="button">關閉</button>
+        </div>
+      </div>
+    </div>
+  </main>
+  <div class="bar">
+    <div class="grp">
+      <button id="bRot" type="button" title="把選中的木塊轉 120°">⟲ 旋轉<kbd>R</kbd></button>
+      <button id="bFlip" type="button" title="把選中的木塊翻面">⇅ 翻面<kbd>F</kbd></button>
+    </div>
+    <span class="sep"></span>
+    <div class="grp">
+      <label for="mode" class="hint-line" style="display:inline">單格</label>
+      <select id="mode" aria-label="單格的位置">
+        <option value="center">固定在中心</option>
+        <option value="random">隨機指定位置</option>
+        <option value="free">自己擺</option>
+      </select>
+    </div>
+    <span class="sep"></span>
+    <div class="grp">
+      <button id="bHint" type="button">提示</button>
+      <button id="bSolve" type="button">看解答</button>
+      <button id="bReset" type="button">重來</button>
+    </div>
+  </div>
+  <div class="hint-line">拖曳木塊放進木盤 · 點一下轉 120° · 右鍵或「翻面」做鏡像 · Y 形單元只能轉 120°，所以翻面常常是關鍵</div>
+</div>
+<script>
+// ===== Y-pentahex puzzle core (geometry + solver) =====
+const R = 4;
+const DIRS = [[1,0],[0,1],[-1,1],[-1,0],[0,-1],[1,-1]];
+const PIECES = [
+  [[0,0]],
+  [[0,0],[1,0],[0,1],[2,-1],[3,-1]],
+  [[0,0],[1,0],[1,-1],[2,0],[3,0]],
+  [[0,0],[1,0],[2,-1],[3,-1],[4,-1]],
+  [[0,0],[0,1],[0,2],[1,2],[-1,3]],
+  [[0,0],[1,-1],[2,-2],[1,0],[0,1]],
+  [[0,0],[1,-1],[2,-2],[2,-3],[2,-1]],
+  [[0,0],[1,0],[2,-1],[2,-2],[3,-2]],
+  [[0,0],[1,-1],[1,-2],[2,-3],[1,0]],
+  [[0,0],[0,1],[1,0],[2,-1],[0,2]],
+  [[0,0],[1,-1],[1,0],[0,1],[-1,2]],
+  [[0,0],[-1,1],[-2,2],[-3,3],[-3,4]],
+  [[0,0],[1,0],[2,0],[2,1],[2,2]],
+];
+const rot120 = ([q,r]) => [r, -q-r];            // 120° rotation (keeps Y orientation)
+const mirror = ([q,r]) => [q+r, -r];             // mirror through tip/notch axis
+// orientation k in 0..5 : k&1 = mirrored, k>>1 = number of 120° rotations
+function orient(cells, k){
+  let c = cells.map(x=>x.slice());
+  if (k & 1) c = c.map(mirror);
+  for (let i=0;i<(k>>1);i++) c = c.map(rot120);
+  return c;
+}
+const CELLS = [];
+for (let r=-R;r<=R;r++) for (let q=-R;q<=R;q++) if (Math.max(Math.abs(q),Math.abs(r),Math.abs(q+r))<=R) CELLS.push([q,r]);
+const CIDX = new Map(CELLS.map((c,i)=>[c[0]+','+c[1], i]));
+const cellIndex = (q,r) => CIDX.has(q+','+r) ? CIDX.get(q+','+r) : -1;
+
+// all placements: per piece list of {k, q, r, cells:[idx], lo, hi}
+function buildPlacements(){
+  return PIECES.map((p)=>{
+    const seen = new Set(), out = [];
+    for (let k=0;k<6;k++){
+      const o = orient(p,k);
+      for (const [cq,cr] of CELLS){
+        const idx = o.map(([a,b])=>cellIndex(a+cq,b+cr));
+        if (idx.some(i=>i<0)) continue;
+        const key = idx.slice().sort((a,b)=>a-b).join(',');
+        if (seen.has(key)) continue; seen.add(key);
+        let lo=0, hi=0; for (const i of idx){ if (i<31) lo|=1<<i; else hi|=1<<(i-31); }
+        out.push({k, q:cq, r:cr, cells:idx, min:Math.min(...idx), lo, hi});
+      }
+    }
+    return out;
+  });
+}
+const PLACE = buildPlacements();
+const BYMIN = PLACE.map(pl=>{ const a=CELLS.map(()=>[]); pl.forEach(p=>a[p.min].push(p)); return a; });
+
+// fixed: array (per piece) of placement or null. Returns {count, first} ; limit stops early
+function solve(fixed, limit=1, budget=5e7, order=null){
+  const ORD = order || PIECES.map((_,i)=>i);
+  let lo=0, hi=0, used=0; const sol = PIECES.map(()=>null);
+  for (let i=0;i<PIECES.length;i++){ const f=fixed[i]; if(!f) continue;
+    if ((lo&f.lo)||(hi&f.hi)) return {count:0, first:null, aborted:false};
+    lo|=f.lo; hi|=f.hi; used|=1<<i; sol[i]=f; }
+  let count=0, first=null, nodes=0, aborted=false;
+  const N = CELLS.length, ALL = (1<<PIECES.length)-1;
+  function firstEmpty(){
+    if (lo !== 0x7fffffff){ const inv=~lo & 0x7fffffff; return 31 - Math.clz32(inv & -inv) ; }
+    const inv = ~hi & ((1<<(N-31))-1); if (!inv) return -1; return 31 + 31 - Math.clz32(inv & -inv);
+  }
+  function rec(){
+    if (++nodes > budget){ aborted=true; return true; }
+    const e = firstEmpty();
+    if (e < 0 || used===ALL){ if (e<0){ count++; if(!first) first=sol.slice(); } return count>=limit; }
+    for (let oi=0;oi<ORD.length;oi++){ const i=ORD[oi];
+      if (used>>i & 1) continue;
+      const list = BYMIN[i][e];
+      for (let j=0;j<list.length;j++){ const p=list[j];
+        if ((lo&p.lo)||(hi&p.hi)) continue;
+        lo|=p.lo; hi|=p.hi; used|=1<<i; sol[i]=p;
+        const stop = rec();
+        lo&=~p.lo; hi&=~p.hi; used&=~(1<<i); sol[i]=null;
+        if (stop) return true;
+      }
+    }
+    return false;
+  }
+  rec();
+  return {count, first, aborted, nodes};
+}
+if (typeof module!=='undefined' && module.exports) module.exports = {R,DIRS,PIECES,orient,CELLS,cellIndex,PLACE,BYMIN,solve,rot120,mirror};
+
+(function(){
+const NS='http://www.w3.org/2000/svg';
+const U=10, STEP=3*U, S3=Math.sqrt(3), HROW=STEP*S3/2;
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const N = PIECES.length;
+const xy=(q,r)=>[STEP*(q+r/2), HROW*r];
+const hexDist=(q,r)=>Math.max(Math.abs(q),Math.abs(r),Math.abs(q+r));
+function toAxial(x,y){
+  const r=y/HROW, q=x/STEP-r/2, s=-q-r;
+  let rq=Math.round(q), rr=Math.round(r), rs=Math.round(s);
+  const dq=Math.abs(rq-q), dr=Math.abs(rr-r), ds=Math.abs(rs-s);
+  if(dq>dr&&dq>ds) rq=-rr-rs; else if(dr>ds) rr=-rq-rs;
+  return [rq,rr];
+}
+// ---------- tile geometry ----------
+const BASE=[[-2,0],[-1.5,S3/2],[-.5,S3/2],[0,S3]];
+const rotP=([x,y],a)=>[x*Math.cos(a)-y*Math.sin(a), x*Math.sin(a)+y*Math.cos(a)];
+const TILE=[]; for(let k=0;k<3;k++) for(const p of BASE){ const q=rotP(p,-2*Math.PI*k/3); TILE.push([q[0]*U,-q[1]*U]); }
+const FACES=[0,1,2].map(k=>{ const pts=[[0,0]]; for(let j=0;j<4;j++) pts.push(TILE[k*4+j]); pts.push(TILE[((k+1)%3)*4]); return pts; });
+const TIPS=[0,1,2].map(k=>TILE[k*4]);
+const FACE_SHADE=FACES.map(f=>{ let cx=0,cy=0; f.forEach(p=>{cx+=p[0];cy+=p[1];}); const l=Math.hypot(cx,cy); return (cx/l)*-0.55+(cy/l)*-0.83; });
+const f2=n=>Math.round(n*100)/100;
+const polyD=(pts,cx,cy)=>'M'+pts.map(p=>f2(p[0]+cx)+' '+f2(p[1]+cy)).join('L')+'Z';
+function el(tag,attrs,parent){ const e=document.createElementNS(NS,tag); for(const k in attrs) e.setAttribute(k,attrs[k]); if(parent) parent.appendChild(e); return e; }
+
+const WOOD={
+  walnut:{h:21,s:36,l:31,side:'#2c1a11',engrave:'rgba(22,11,5,.78)',outline:'#20120a',depth:3},
+  maple:{h:31,s:56,l:63,side:'#94622f',engrave:'rgba(96,58,22,.62)',outline:'#80522a',depth:4.5},
+  pin:{h:34,s:52,l:70,side:'#a2723f',engrave:'rgba(96,58,22,.6)',outline:'#8a5c2e',depth:3},
+};
+function woodGroup(centers,w,parent){
+  const g=el('g',{},parent);
+  const sil=centers.map(([x,y])=>polyD(TILE,x,y)).join('');
+  el('path',{d:sil,fill:w.side,transform:`translate(0 ${w.depth})`},g);
+  FACES.forEach((f,k)=>{
+    const l=w.l+FACE_SHADE[k]*4.5;
+    el('path',{d:centers.map(([x,y])=>polyD(f,x,y)).join(''),fill:`hsl(${w.h} ${w.s}% ${l}%)`,stroke:`hsl(${w.h} ${w.s}% ${l}%)`,'stroke-width':.4,'stroke-linejoin':'round'},g);
+  });
+  el('path',{d:sil,fill:'url(#grain)'},g);
+  // edges
+  const cnt=new Map(), segs=new Map();
+  centers.forEach(([x,y])=>{ for(let j=0;j<TILE.length;j++){ const a=TILE[j], b=TILE[(j+1)%TILE.length];
+    const A=[f2(a[0]+x),f2(a[1]+y)], B=[f2(b[0]+x),f2(b[1]+y)];
+    const ka=A.map(v=>v.toFixed(1)).join(','), kb=B.map(v=>v.toFixed(1)).join(',');
+    const key=ka<kb?ka+'|'+kb:kb+'|'+ka; cnt.set(key,(cnt.get(key)||0)+1); segs.set(key,[A,B]); }});
+  let inner='', outer='';
+  cnt.forEach((c,key)=>{ const [A,B]=segs.get(key); const s=`M${A[0]} ${A[1]}L${B[0]} ${B[1]}`; if(c>1) inner+=s; else outer+=s; });
+  centers.forEach(([x,y])=>TIPS.forEach(t=>{ inner+=`M${f2(x)} ${f2(y)}L${f2(x+t[0])} ${f2(y+t[1])}`; }));
+  el('path',{d:inner,fill:'none',stroke:w.engrave,'stroke-width':.75,'stroke-linecap':'round'},g);
+  el('path',{d:outer,fill:'none',stroke:w.outline,'stroke-width':1,'stroke-linecap':'round'},g);
+  return {g,outer};
+}
+
+// ---------- board ----------
+const svg=document.getElementById('table');
+const boardLayer=document.getElementById('boardLayer'), ghostLayer=document.getElementById('ghostLayer'), pieceLayer=document.getElementById('pieceLayer');
+const stage=document.getElementById('stage');
+const ring=[], all5=[], inside=[];
+for(let r=-5;r<=5;r++) for(let q=-5;q<=5;q++){ const d=hexDist(q,r); if(d<=5) all5.push(xy(q,r)); if(d===5) ring.push(xy(q,r)); if(d<=4) inside.push(xy(q,r)); }
+const boardBox={minX:1e9,maxX:-1e9,minY:1e9,maxY:-1e9};
+ring.forEach(([x,y])=>TILE.forEach(([a,b])=>{ boardBox.minX=Math.min(boardBox.minX,x+a); boardBox.maxX=Math.max(boardBox.maxX,x+a); boardBox.minY=Math.min(boardBox.minY,y+b); boardBox.maxY=Math.max(boardBox.maxY,y+b+4.5); }));
+(function drawBoard(){
+  const sil=all5.map(([x,y])=>polyD(TILE,x,y)).join('');
+  el('path',{d:sil,fill:'#a8783f',transform:'translate(0 4)'},boardLayer);
+  el('path',{d:sil,fill:'#e2bf8b'},boardLayer);
+  el('path',{d:sil,fill:'url(#grain)'},boardLayer);
+  // faint slot engraving
+  const seen=new Set(); let d='';
+  inside.forEach(([x,y])=>{ for(let j=0;j<TILE.length;j++){ const a=TILE[j], b=TILE[(j+1)%TILE.length];
+    const A=[f2(a[0]+x),f2(a[1]+y)], B=[f2(b[0]+x),f2(b[1]+y)];
+    const ka=A.map(v=>v.toFixed(1)).join(','), kb=B.map(v=>v.toFixed(1)).join(','); const key=ka<kb?ka+kb:kb+ka;
+    if(seen.has(key)) continue; seen.add(key); d+=`M${A[0]} ${A[1]}L${B[0]} ${B[1]}`; }});
+  el('path',{d,fill:'none',stroke:'rgba(125,82,38,.28)','stroke-width':.7},boardLayer);
+  // the real board's center engraving + pin hole
+  let c=polyD(TILE,0,0); TIPS.forEach(t=>c+=`M0 0L${f2(t[0])} ${f2(t[1])}`);
+  el('path',{d:c,fill:'none',stroke:'rgba(96,58,22,.7)','stroke-width':.9},boardLayer);
+  el('circle',{cx:0,cy:0,r:2.4,fill:'#4a3423'},boardLayer);
+  woodGroup(ring,WOOD.maple,boardLayer);
+})();
+
+// ---------- state ----------
+const POS_COUNT={"0,-4":514,"1,-4":426,"2,-4":192,"3,-4":104,"4,-4":378,"0,-3":218,"1,-3":190,"2,-3":186,"3,-3":242,"0,-2":122,"1,-2":200,"2,-2":208,"0,-1":208,"1,-1":226,"0,0":312};
+function countAt(q,r){ for(let k=0;k<6;k++){ const [a,b]=orient([[q,r]],k)[0]; const v=POS_COUNT[a+','+b]; if(v) return v; } return 0; }
+const PKEY=PLACE.map(pl=>{ const m=new Map(); pl.forEach(p=>m.set(p.cells.slice().sort((a,b)=>a-b).join(','),p)); return m; });
+let st;
+function freshState(mode,mono){ return {k:Array(N).fill(0),pos:Array(N).fill(null),mode,mono,hints:0,elapsed:0,started:false,done:false,revealed:false}; }
+const locked=i=>i===0&&st.mode!=='free';
+const oc=i=>orient(PIECES[i],st.k[i]);
+
+// ---------- piece DOM ----------
+const pe=[]; const T=[]; let selected=-1;
+for(let i=0;i<N;i++){
+  const g=el('g',{class:'piece','data-i':i},pieceLayer); const inner=el('g',{},g);
+  pe.push({g,inner}); T.push({x:0,y:0,s:1,anim:0});
+}
+function renderPiece(i){
+  const {g,inner}=pe[i]; inner.innerHTML='';
+  const cells=oc(i), centers=cells.map(c=>xy(c[0],c[1]));
+  const {outer}=woodGroup(centers,i===0?WOOD.pin:WOOD.walnut,inner);
+  el('path',{d:outer,class:'selpath',fill:'none',style:'stroke:var(--accent)','stroke-width':2.6,'stroke-linecap':'round'},inner);
+  if(i===0){ el('circle',{cx:1.2,cy:2.6,r:3.6,fill:'rgba(0,0,0,.28)'},inner); el('circle',{cx:0,cy:0,r:3.6,fill:'url(#steel)'},inner); }
+  g.classList.toggle('locked',locked(i));
+}
+function bbox(i){ const c=oc(i).map(a=>xy(a[0],a[1])); let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
+  c.forEach(([x,y])=>{x0=Math.min(x0,x-2*U);x1=Math.max(x1,x+2*U);y0=Math.min(y0,y-S3*U);y1=Math.max(y1,y+S3*U);});
+  return {cx:(x0+x1)/2,cy:(y0+y1)/2}; }
+let L={homes:[],scale:.6};
+function targetOf(i){
+  if(st.pos[i]){ const [x,y]=xy(st.pos[i].q,st.pos[i].r); return {x,y,s:1}; }
+  const s=i===0?.8:L.scale, b=bbox(i), h=L.homes[i]; return {x:h[0]-s*b.cx,y:h[1]-s*b.cy,s};
+}
+function setT(i,t){ Object.assign(T[i],{x:t.x,y:t.y,s:t.s}); pe[i].g.setAttribute('transform',`translate(${f2(t.x)} ${f2(t.y)}) scale(${t.s})`); }
+const ease=t=>1-Math.pow(1-t,3);
+function moveTo(i,t,dur=200){
+  const from={x:T[i].x,y:T[i].y,s:T[i].s}, id=++T[i].anim;
+  if(RM||dur<=0){ setT(i,t); return; }
+  const t0=performance.now();
+  (function step(now){ if(T[i].anim!==id) return; const p=Math.min(1,(now-t0)/dur), e=ease(p);
+    setT(i,{x:from.x+(t.x-from.x)*e,y:from.y+(t.y-from.y)*e,s:from.s+(t.s-from.s)*e}); T[i].anim=id; if(p<1) requestAnimationFrame(step); })(t0);
+}
+function animInner(i,fn,dur=230){
+  const inner=pe[i].inner; if(RM){ inner.removeAttribute('transform'); return; }
+  const t0=performance.now();
+  (function step(now){ const p=Math.min(1,(now-t0)/dur); inner.setAttribute('transform',fn(ease(p))); if(p<1) requestAnimationFrame(step); else inner.removeAttribute('transform'); })(t0);
+}
+function select(i){ selected=i; pe.forEach((p,j)=>p.g.classList.toggle('sel',j===i)); }
+
+// ---------- layout ----------
+function layout(){
+  if(!st) return;
+  const w=stage.clientWidth||800, h=stage.clientHeight||500;
+  const bx0=boardBox.minX-4, bx1=boardBox.maxX+4, by0=boardBox.minY-6, by1=boardBox.maxY+6;
+  const homes=[]; let vb;
+  if(w/h>1.15){
+    const sw=124, sh=(by1-by0)/3; L.scale=.66;
+    for(let i=1;i<N;i++){ const idx=(i-1)%6, col=idx%2, row=Math.floor(idx/2), left=i<=6;
+      homes[i]=[left? bx0-10-2*sw+sw*(col+.5) : bx1+10+sw*(col+.5), by0+sh*(row+.5)]; }
+    vb=[bx0-10-2*sw, by0, (bx1-bx0)+20+4*sw, by1-by0];
+  } else {
+    const sw=(bx1-bx0)/4, sh=88, ty0=by1+4; L.scale=.5;
+    for(let i=1;i<N;i++){ const idx=i-1, col=idx%4, row=Math.floor(idx/4); homes[i]=[bx0+sw*(col+.5), ty0+sh*(row+.5)]; }
+    vb=[bx0, by0, bx1-bx0, ty0+3*sh-by0];
+  }
+  homes[0]=[boardBox.minX+30, boardBox.maxY-28];
+  L.homes=homes;
+  svg.setAttribute('viewBox',vb.map(f2).join(' '));
+  for(let i=0;i<N;i++) if(!(drag&&drag.active&&drag.i===i)) setT(i,targetOf(i));
+}
+
+// ---------- rules ----------
+function occupancy(except){ const occ=new Set(); for(let j=0;j<N;j++){ if(j===except||!st.pos[j]) continue; oc(j).forEach(([a,b])=>occ.add((a+st.pos[j].q)+','+(b+st.pos[j].r))); } return occ; }
+function canPlace(i,k,q,r){ const occ=occupancy(i); return orient(PIECES[i],k).every(([a,b])=>hexDist(a+q,b+r)<=4 && !occ.has((a+q)+','+(b+r))); }
+const rotK=k=>(k&1)|((((k>>1)+1)%3)<<1);
+const flipK=k=>((k&1)^1)|(((3-(k>>1))%3)<<1);
+function covered(){ let n=0; for(let j=0;j<N;j++) if(st.pos[j]) n+=PIECES[j].length; return n; }
+
+// ---------- UI bits ----------
+const $=id=>document.getElementById(id);
+let toastTimer=0;
+function toast(msg,ms=3400){ const t=$('toast'); t.textContent=msg; t.classList.remove('hide'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.add('hide'),ms); }
+const fmt=s=>String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+function stats(){ let n=0; for(let j=1;j<N;j++) if(st.pos[j]) n++; $('sPlaced').textContent=n; $('sTime').textContent=fmt(Math.floor(st.elapsed)); $('sHints').textContent=st.revealed?'解答':st.hints; }
+let lastTick=performance.now();
+setInterval(()=>{ const now=performance.now(); if(st.started&&!st.done&&document.visibilityState==='visible'){ st.elapsed+=(now-lastTick)/1000; stats(); } lastTick=now; },500);
+function save(){ try{ localStorage.setItem('yhex-v1',JSON.stringify(st)); }catch(e){} }
+function after(){ stats(); save(); if(!st.done&&covered()===61){ st.done=true; save(); showWin(); } }
+function showWin(){
+  $('winTitle').textContent=st.revealed?'這是一組解':'拼好了';
+  $('winText').textContent=st.revealed?'換一個單格位置，自己再挑戰一次？':`用時 ${fmt(Math.floor(st.elapsed))}，提示 ${st.hints} 次。`;
+  $('win').hidden=false;
+  if(!RM){ const t0=performance.now(); (function wave(now){ const p=(now-t0)/1100; pe.forEach((x,j)=>{ const a=Math.max(0,Math.sin(Math.min(1,Math.max(0,p*2-j*.08))*Math.PI)); x.g.style.filter=a>0.01?`brightness(${1+a*.35})`:''; }); if(p<1.6) requestAnimationFrame(wave); else pe.forEach(x=>x.g.style.filter=''); })(t0); }
+}
+function posLabel(q,r){ return hexDist(q,r)===0?'正中央':`離中心 ${hexDist(q,r)} 格`; }
+function modeToast(){
+  if(st.mode==='free') return toast('單格也要自己擺。全部 61 格每一格都放得出解。');
+  const [q,r]=st.mono, n=countAt(q,r);
+  toast(st.mode==='center'?'單格固定在正中央：共有 312 種擺法，扣掉旋轉與翻面後是 52 種。':`單格固定在${posLabel(q,r)}的位置（有黃銅釘那顆），這個位置共有 ${n} 種擺法。`,5200);
+}
+
+// ---------- game control ----------
+function newGame(mode){
+  let mono=[0,0];
+  if(mode==='random'){ const opts=CELLS.filter(([q,r])=>q||r); mono=opts[Math.floor(Math.random()*opts.length)]; }
+  st=freshState(mode,mono);
+  if(mode!=='free') st.pos[0]={q:mono[0],r:mono[1]};
+  $('win').hidden=true; $('mode').value=mode;
+  for(let i=0;i<N;i++){ renderPiece(i); } select(-1); layout(); stats(); save(); modeToast(); clearGhost();
+}
+function load(obj){
+  if(!obj||!Array.isArray(obj.k)||obj.k.length!==N) return false;
+  st=Object.assign(freshState('center',[0,0]),obj); $('mode').value=st.mode;
+  for(let i=0;i<N;i++) renderPiece(i); layout(); stats(); $('win').hidden=!st.done; if(st.done) showWin(); return true;
+}
+function startClock(){ if(!st.started){ st.started=true; lastTick=performance.now(); } }
+
+function rotate(i,pivot){ transformPiece(i,rotK(st.k[i]),pivot,'rot'); }
+function flip(i,pivot){ transformPiece(i,flipK(st.k[i]),pivot,'flip'); }
+function transformPiece(i,nk,pivot,kind){
+  if(i<0){ toast('先點一下要轉的木塊'); return; }
+  if(locked(i)){ toast('這顆單格固定在木盤上'); return; }
+  if(pivot==null) pivot=Math.min(2,PIECES[i].length-1);
+  const old=oc(i), nw=orient(PIECES[i],nk);
+  if(st.pos[i]){
+    const wq=st.pos[i].q+old[pivot][0], wr=st.pos[i].r+old[pivot][1], q=wq-nw[pivot][0], r=wr-nw[pivot][1];
+    if(!canPlace(i,nk,q,r)){ shake(i); toast('這裡轉不開，先拖出木盤再轉'); return; }
+    st.pos[i]={q,r};
+  }
+  st.k[i]=nk; renderPiece(i); startClock();
+  let px,py; if(st.pos[i]){ [px,py]=xy(nw[pivot][0],nw[pivot][1]); } else { const b=bbox(i); px=b.cx; py=b.cy; }
+  setT(i,targetOf(i));
+  if(kind==='rot') animInner(i,e=>`rotate(${f2(120*(1-e))} ${f2(px)} ${f2(py)})`);
+  else animInner(i,e=>`translate(0 ${f2(py)}) scale(1 ${f2(-1+2*e)}) translate(0 ${f2(-py)})`,260);
+  after();
+}
+function shake(i){ animInner(i,e=>`translate(${f2(Math.sin(e*Math.PI*5)*3*(1-e))} 0)`,320); }
+
+// ---------- dragging ----------
+let drag=null;
+function svgPt(e){ const p=svg.createSVGPoint(); p.x=e.clientX; p.y=e.clientY; const m=svg.getScreenCTM(); if(!m) return [0,0]; const r=p.matrixTransform(m.inverse()); return [r.x,r.y]; }
+function nearestUnit(i,pt){ const t=T[i], lx=(pt[0]-t.x)/t.s, ly=(pt[1]-t.y)/t.s; let best=0,bd=1e9; oc(i).forEach(([a,b],j)=>{ const [x,y]=xy(a,b); const d=(x-lx)**2+(y-ly)**2; if(d<bd){bd=d;best=j;} }); return best; }
+function clearGhost(){ ghostLayer.innerHTML=''; }
+function drawGhost(i,q,r){ clearGhost(); const d=oc(i).map(([a,b])=>{ const [x,y]=xy(a+q,b+r); return polyD(TILE,x,y); }).join('');
+  el('path',{d,style:'fill:var(--accent);stroke:var(--accent)','fill-opacity':.3,'stroke-width':1.2},ghostLayer); }
+svg.addEventListener('pointerdown',e=>{
+  if(e.button===2) return;
+  const g=e.target.closest&&e.target.closest('.piece'); if(!g){ select(-1); return; }
+  const i=+g.dataset.i; if(locked(i)){ toast('有黃銅釘的單格固定在這裡，其餘 12 片圍著它拼'); return; }
+  e.preventDefault(); try{ svg.setPointerCapture(e.pointerId); }catch(_){}
+  const pt=svgPt(e);
+  drag={i,id:e.pointerId,sx:e.clientX,sy:e.clientY,t0:performance.now(),grab:nearestUnit(i,pt),active:false,touch:e.pointerType!=='mouse',snap:null};
+  select(i);
+});
+svg.addEventListener('pointermove',e=>{
+  if(!drag||e.pointerId!==drag.id) return;
+  if(!drag.active){ if(Math.hypot(e.clientX-drag.sx,e.clientY-drag.sy)<7) return; beginDrag(); }
+  const i=drag.i, pt=svgPt(e), lift=drag.touch?34:0;
+  const P=[pt[0],pt[1]-lift], c=oc(i)[drag.grab], [cx,cy]=xy(c[0],c[1]);
+  T[i].anim++; setT(i,{x:P[0]-cx,y:P[1]-cy,s:1});
+  const [q,r]=toAxial(P[0],P[1]), aq=q-c[0], ar=r-c[1];
+  if(hexDist(q,r)<=4 && canPlace(i,st.k[i],aq,ar)){ drag.snap={q:aq,r:ar}; drawGhost(i,aq,ar); } else { drag.snap=null; clearGhost(); }
+});
+function beginDrag(){ const i=drag.i; drag.active=true; startClock();
+  if(st.pos[i]){ st.pos[i]=null; stats(); }
+  pieceLayer.appendChild(pe[i].g); pe[i].g.setAttribute('filter','url(#lift)'); svg.classList.add('dragging'); }
+function endDrag(e,cancel){
+  if(!drag||(e&&e.pointerId!==drag.id)) return;
+  const d=drag; drag=null; svg.classList.remove('dragging'); clearGhost();
+  if(!d.active){ if(!cancel&&performance.now()-d.t0<450) rotate(d.i,d.grab); return; }
+  pe[d.i].g.removeAttribute('filter');
+  if(!cancel&&d.snap){ st.pos[d.i]=d.snap; }
+  moveTo(d.i,targetOf(d.i),st.pos[d.i]?120:240);
+  after();
+}
+svg.addEventListener('pointerup',e=>endDrag(e,false));
+svg.addEventListener('pointercancel',e=>endDrag(e,true));
+svg.addEventListener('contextmenu',e=>{
+  e.preventDefault();
+  const g=e.target.closest&&e.target.closest('.piece'); if(!g) return;
+  const i=+g.dataset.i; if(drag&&drag.active) return; drag=null; select(i); flip(i,nearestUnit(i,svgPt(e)));
+});
+
+// ---------- hint / solve ----------
+function fixedNow(skip){ const f=Array(N).fill(null);
+  for(let j=0;j<N;j++){ if(j===skip||!st.pos[j]) continue; const key=oc(j).map(([a,b])=>cellIndex(a+st.pos[j].q,b+st.pos[j].r)).sort((a,b)=>a-b).join(','); f[j]=PKEY[j].get(key)||null; }
+  return f; }
+function shuffled(){ const a=PIECES.map((_,i)=>i); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function placeFrom(j,p,dur=260){ st.k[j]=p.k; st.pos[j]={q:p.q,r:p.r}; renderPiece(j); pieceLayer.appendChild(pe[j].g); moveTo(j,targetOf(j),dur); }
+function hint(){
+  if(st.done) return;
+  toast('想一下…',8000);
+  setTimeout(()=>{
+    const res=solve(fixedNow(-1),1,2.5e7,shuffled());
+    if(res.first){
+      let firstEmpty=-1; const occ=occupancy(-1); for(let c=0;c<CELLS.length;c++){ if(!occ.has(CELLS[c].join(','))){ firstEmpty=c; break; } }
+      let j=res.first.findIndex((p,idx)=>p&&!st.pos[idx]&&p.cells.includes(firstEmpty));
+      if(j<0) j=res.first.findIndex((p,idx)=>p&&!st.pos[idx]);
+      st.hints++; startClock(); select(j); placeFrom(j,res.first[j],420);
+      toast('目前的擺法還有解，幫你放了一片。'); after(); return;
+    }
+    if(res.aborted){ toast('找了很久還沒有結論，先多放幾片再問一次。'); return; }
+    const bad=[]; for(let j=0;j<N;j++){ if(!st.pos[j]||locked(j)) continue; const r=solve(fixedNow(j),1,3e6); if(r.first) bad.push(j); }
+    st.hints++; after();
+    if(bad.length){ bad.forEach(j=>shake(j)); select(bad[0]); toast(bad.length===1?'目前這樣無解。剛剛晃動的那片放錯了，拿掉它就有解。':`目前這樣無解。晃動的 ${bad.length} 片裡任拿掉一片就有解。`,5200); }
+    else toast('目前這樣無解，而且不是只錯一片。試著多拿掉幾片重新排。',5200);
+  },30);
+}
+let solveArm=0;
+function revealSolution(){
+  const b=$('bSolve');
+  if(!solveArm){ b.textContent='確定要看？'; b.classList.add('warn'); solveArm=setTimeout(()=>{ solveArm=0; b.textContent='看解答'; b.classList.remove('warn'); },3000); return; }
+  clearTimeout(solveArm); solveArm=0; b.textContent='看解答'; b.classList.remove('warn');
+  let res=solve(fixedNow(-1),1,2.5e7,shuffled());
+  if(!res.first){ for(let j=0;j<N;j++) if(!locked(j)) st.pos[j]=null; res=solve(fixedNow(-1),1,2.5e7,shuffled()); }
+  if(!res.first) return toast('找不到解，請按「重來」');
+  st.revealed=true; let d=0;
+  res.first.forEach((p,j)=>{ if(p&&!st.pos[j]){ setTimeout(()=>placeFrom(j,p,320),RM?0:d); d+=90; } });
+  for(let j=0;j<N;j++) if(!res.first[j]||st.pos[j]) setT(j,targetOf(j));
+  setTimeout(after,RM?0:d+350);
+}
+
+// ---------- wiring ----------
+$('bRot').onclick=()=>rotate(selected,null);
+$('bFlip').onclick=()=>flip(selected,null);
+$('bHint').onclick=hint;
+$('bSolve').onclick=revealSolution;
+$('bReset').onclick=()=>{ const m=st.mode, mono=st.mono; newGame(m); if(m==='random'){ st=freshState(m,mono); st.pos[0]={q:mono[0],r:mono[1]}; for(let i=0;i<N;i++) renderPiece(i); layout(); stats(); save(); modeToast(); } };
+$('mode').onchange=e=>newGame(e.target.value);
+$('winAgain').onclick=()=>newGame('random');
+$('winClose').onclick=()=>{ $('win').hidden=true; };
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='SELECT') return;
+  const k=e.key.toLowerCase();
+  if(k==='r') rotate(selected,null); else if(k==='f') flip(selected,null); else if(k==='h') hint(); else if(k==='escape') select(-1);
+});
+new ResizeObserver(()=>layout()).observe(stage);
+
+function start(data){
+  let ok=false;
+  if(data&&data.k) ok=load(data);
+  if(!ok){ try{ const s=JSON.parse(localStorage.getItem('yhex-v1')||'null'); ok=load(s); }catch(e){ ok=false; } }
+  if(!ok) newGame('center'); else if(!st.done) toast('接著上次的進度。想重新開始就按「重來」。');
+}
+window.claude?.hot?.snapshot?.(()=>JSON.parse(JSON.stringify(st)));
+window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+})();
+
+</script>
+</body>
+</html>
